@@ -1,53 +1,27 @@
-name: DeUni
-version: 0.0.1
-cabal-version: -any
-build-type: Simple
-license: AllRightsReserved
-license-file: ""
-copyright:
-maintainer:
-build-depends: Vec -any, array -any, base -any, containers -any,
-               mtl -any
-stability:
-homepage:
-package-url:
-bug-reports:
-synopsis: DeUni
-description: .
-             .
-category:
-author:
-tested-with:
-data-files:
-data-dir: ""
-extra-source-files:
-extra-tmp-files:
- 
-executable: DeUni
-main-is: Main.hs
-buildable: True
-build-tools:
-cpp-options:
-cc-options:
-ld-options:
-pkgconfig-depends:
-frameworks:
-c-sources:
-default-language:
-other-languages:
-default-extensions:
-other-extensions:
-extensions:
-extra-libraries:
-extra-lib-dirs:
-includes:
-install-includes:
-include-dirs:
-hs-source-dirs: src
-other-modules:
-ghc-prof-options:
-ghc-shared-options:
-ghc-options:
-hugs-options:
-nhc98-options:
-jhc-options:
+Name:                DeUni
+Version:             0.1
+License:             BSD3
+License-file:        LICENSE
+Author:              Edgar Gomes de Araujo
+Maintainer:          Edgar Gomes de Araujo <talktoedgar@gmail.com>
+Homepage:            
+Stability:           Experimental
+Synopsis:            3D Convex Hull and Delaunay triangulation generator
+Description:         
+    3D Convex Hull and Delaunay triangulation generator based on MBC
+    (Marriage Before Conquer).
+Cabal-version:       >=1.2.0
+Build-type:          Simple
+Category:            Data,Math
+
+
+library
+    hs-source-dirs:     src
+    Build-Depends:        base<=5
+                        , Vec -any
+                        , containers -any
+                        , mtl -any
+                        , random
+
+    Exposed-modules:    Math.DeUni
+    Extensions: 
