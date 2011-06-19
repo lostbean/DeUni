@@ -12,16 +12,17 @@ Description:
     (Marriage Before Conquer).
 Cabal-version:       >=1.2.0
 Build-type:          Simple
-Category:            Data,Math
+Category:            Data, Math
 
 
 library
     hs-source-dirs:     src
-    Build-Depends:        base<=5
-                        , Vec -any
+    Build-Depends:        base       <=5
+                        , Vec        -any
                         , containers -any
-                        , mtl -any
-                        , random
+                        , mtl        -any
+                        , random     -any
+                        , diffarray  -any
 
     Exposed-modules:    Math.DeUni
     Extensions: 

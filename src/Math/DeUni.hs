@@ -56,10 +56,13 @@ import Data.Vec hiding (map, length, fromList, fold, get, Map)
 import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
 import qualified Data.List as L
 import Data.Set ( Set, deleteFindMax, member, empty, null, delete, insert, fromList, fold, elems, union, findMax )
+import qualified Data.IntMap as IM
+import Data.IntMap (IntMap)
 import Data.Maybe
 import Control.Applicative ((<$>))
 import Control.Monad.State.Lazy
 import System.Random
+import Data.Array.Diff hiding (elems)
 
 
 import Debug.Trace
@@ -70,7 +73,11 @@ debug s x = x --trace (s ++ show x) x
 -- >>>>>>>>>>> Type definitions <<<<<<<<<<<<<<<<<<<
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- | Define a point in 3D (x,y,z)
-type Point = Vec3D
+type Point           = Vec3D
+type SetPoint        = DiffArray PointPointer Point
+type SetSimplex      = IntMap Simplex
+type SetFace         = IntMap Face
+newtype PointPointer = PointPointer Int deriving (Eq, Ord, Num, Ix, Real, Enum, Integral, Show)
 
 instance Ord Vec3D where
     compare p1@(Vec3D a1 b1 c1) p2@(Vec3D a2 b2 c2)
@@ -89,14 +96,14 @@ instance Ord Vec3D where
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 data Simplex = Simplex
     { circumSphereCenter :: Point
-    , setCellID          :: (Point, Point, Point, Point)
+    , setCellID          :: (PointPointer, PointPointer, PointPointer, PointPointer)
     } deriving (Show, Eq)
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- Instances for edge
 data Edge = Edge
-    { pointL :: Point
-    , pointR :: Point
+    { pointL :: PointPointer
+    , pointR :: PointPointer
     } deriving (Show)
 
 instance Ord Edge where
@@ -120,7 +127,7 @@ instance Eq Edge where
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 data Face = Face
-   { facePoints :: (Point, Point, Point)
+   { facePoints :: (PointPointer, PointPointer, PointPointer)
    , refND      :: Point
    } deriving Show
 
@@ -129,7 +136,7 @@ instance Ord Face where
         where
         a' = (fast3DSort.facePoints) a
         b' = (fast3DSort.facePoints) b
-        fast3DSort::(Point, Point, Point) -> (Point, Point, Point)
+        fast3DSort::(PointPointer, PointPointer, PointPointer) -> (PointPointer, PointPointer, PointPointer)
         fast3DSort face@(a, b, c)
            | (a >= b) && (b >= c) = face
            | otherwise = (a', b', c')
@@ -148,7 +155,7 @@ instance Eq Face where
 -- ActiveSubUnit
 data ActiveSubUnit a = ActiveUnit
     { activeUnit :: a
-    , assocP     :: Point
+    , assocP     :: PointPointer
     , assocND    :: Point
     } deriving (Show, Eq)
 
@@ -169,9 +176,9 @@ data Plane = Plane
     } deriving (Show, Eq)
 
 data PointPartition = PointPartition
-    { pointsOnB1   :: [Point]
-    , pointsOnB2   :: [Point]
-    , pointsOnPlane:: [Point]
+    { pointsOnB1   :: [PointPointer]
+    , pointsOnB2   :: [PointPointer]
+    , pointsOnPlane:: [PointPointer]
     } deriving (Show)
 
 -- | Define possible possitions of the elements for the 1st half-space (Box1=B1),
@@ -205,39 +212,18 @@ data SubUnitsSets a = SubUnitsSets
     , externalFaces              :: [ActiveSubUnit a]
     , randomSeed                 :: StdGen
     , count                      :: Int
+    , setPoint                   :: SetPoint
     } deriving (Show)
 
 type SetActiveSubUnits a = Set (ActiveSubUnit a)
 type StateMBC a          = State (SubUnitsSets a)
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{-
-class SubUnit subUnit where
-    type Unit subUnit :: *
-    buildUnit      :: ActiveSubUnit subUnit -> [Point] -> Maybe (Unit subUnit)
-    build1stUnit   :: Plane -> [Point] -> [Point] -> [Point] -> Maybe (Unit subUnit)
-    getAllSubUnits :: Unit subUnit -> [ActiveSubUnit subUnit]
-    subUnitPos     :: BoxPair -> subUnit -> Position
-
-instance SubUnit Edge where
-    type Unit Edge = Face
-    buildUnit      = makeFace
-    build1stUnit   = makeFirstFace
-    getAllSubUnits = extractAllFaceEdges
-    subUnitPos     = edgePos
-
-instance SubUnit Face where
-    type Unit Face = Simplex
-    buildUnit      = makeSimplex
-    build1stUnit   = undefined
-    getAllSubUnits = extractAllSimplexFaces
-    subUnitPos     = facePos
--}
 class SubUnit subUnit unit | subUnit -> unit, unit -> subUnit where
-    buildUnit      :: ActiveSubUnit subUnit -> [Point] -> Maybe unit
-    build1stUnit   :: Plane -> [Point] -> [Point] -> [Point] -> Maybe unit
-    getAllSubUnits :: unit -> [ActiveSubUnit subUnit]
-    subUnitPos     :: BoxPair -> subUnit -> Position
+    buildUnit      :: ActiveSubUnit subUnit -> SetPoint -> [PointPointer] -> Maybe unit
+    build1stUnit   :: Plane -> SetPoint -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe unit
+    getAllSubUnits :: SetPoint -> unit -> [ActiveSubUnit subUnit]
+    subUnitPos     :: BoxPair -> SetPoint -> subUnit -> Position
 
 instance SubUnit Edge Face where
     buildUnit      = makeFace
@@ -255,21 +241,25 @@ instance SubUnit Face Simplex where
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Exposed functions |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-runDeHull::Box -> [Point] -> [Face]
-runDeHull box ps = fst $ runState (mbc ps (empty::SetActiveSubUnits Edge) box) initState
+runDeHull::Box -> SetPoint -> [PointPointer] -> (SetFace, SubUnitsSets Edge)
+runDeHull box sP ps = runState (mbc ps (empty::SetActiveSubUnits Edge) box) init
+  where
+    init = initState sP
 
 
-runDeWall::Box -> [Point] -> ([Simplex], Int)
-runDeWall box ps = (fst r, count $ snd r)
-    where r = runState (mbc ps (empty::SetActiveSubUnits Face) box) initState
+runDeWall::Box -> SetPoint -> [PointPointer] -> (SetSimplex, SubUnitsSets Face)
+runDeWall box sP ps = runState (mbc ps (empty::SetActiveSubUnits Face) box) init
+  where
+    init = initState sP
 
-initState = SubUnitsSets
+initState sP = SubUnitsSets
     { aflAlpha      = empty
     , aflBox1       = empty
     , aflBox2       = empty
     , externalFaces = []
     , randomSeed    = mkStdGen 240779
     , count         = 0
+    , setPoint      = sP
     }
 
 
@@ -279,23 +269,25 @@ initState = SubUnitsSets
 
 
 -- | Marriage Before Conquer
-mbc::(SubUnit a b, Ord a, Show a)=>[Point] -> SetActiveSubUnits a -> Box -> StateMBC a [b]
+mbc::(SubUnit a b, Ord a, Show a)=>[PointPointer] -> SetActiveSubUnits a -> Box -> StateMBC a (IntMap b)
 mbc p afl box = do
     cleanAFLs
     (plane, pairBox) <- genBox box
+    sP <- liftM setPoint get
     let
-        pp = pointSetPartition (whichBoxIsIt pairBox) p
+        pp = pointSetPartition (whichBoxIsIt pairBox) sP p
         p1 = pointsOnB1 pp
         p2 = (pointsOnB2 pp) ++ (pointsOnPlane pp)
     if (debug "outter: " $ null afl)
         then do
-            us <- case build1stUnit plane p1 p2 p of
+            us <- case build1stUnit plane sP p1 p2 p of
                 Just unit  -> do
-                    mapM_ (splitAF pairBox) (getAllSubUnits unit)
+                    mapM_ (splitAF pairBox) (getAllSubUnits sP unit)
                     units <- getUnitsOnPlane p pairBox plane
-                    modify (\x -> x { count = (count x) + 1 })
-                    return (unit:units)
-                _        -> return []
+                    cnt   <- liftM count get
+                    modify (\x -> x { count = cnt + 1 })
+                    return $ IM.insert cnt unit units
+                _        -> return IM.empty
             analyzeUnit pairBox p1 p2 us
         else do
             mapM_ (splitAF pairBox) (elems afl)
@@ -303,27 +295,28 @@ mbc p afl box = do
             analyzeUnit pairBox p1 p2 units
     where
         cleanAFLs = modify (\x -> x { aflAlpha=empty, aflBox1=empty, aflBox2=empty })
+        
         analyzeUnit pairBox p1 p2 units = get >>= redirect
             where
-            redirect st = case debug "split: " (L.null units, null afl1, null afl2, L.null p1, L.null p2) of
+            redirect st = case debug "split: " (IM.null units, null afl1, null afl2, L.null p1, L.null p2) of
                 -- The state is independant and can discarted as it will be
                 -- ereased at the bigein of the next recursive func call
               --(units, afl1,  afl2,  p1,    p2   )
                 (True,  True,  True,  False, True ) -> mbc p1 afl1 box1
                 (True,  True,  True,  True,  False) -> mbc p2 afl2 box2
-                (True,  True,  True,  _ ,    _    ) -> return []
+                (True,  True,  True,  _ ,    _    ) -> return IM.empty
                 (True,  False, True,  False, True ) -> mbc p1 afl1 box1
                 (True,  True,  False, True,  False) -> mbc p2 afl2 box2
                 (True,  _,     _,     False, False) -> mbc p (union afl1 afl2) box
                 (False, True,  True,  _ ,    _    ) -> return units
-                (False, True,  False, _ ,    _    ) -> (++ units) <$> mbc p2 afl2 box2
-                (False, False, True,  _ ,    _    ) -> (++ units) <$> mbc p1 afl1 box1
+                (False, True,  False, _ ,    _    ) -> (IM.union units) <$> mbc p2 afl2 box2
+                (False, False, True,  _ ,    _    ) -> (IM.union units) <$> mbc p1 afl1 box1
                 (False, False, False, _ ,    _    ) -> do
                   let c = count st
                       (us1, st1) = runState (mbc p1 afl1 box1) st
                       (us2, st2) = runState (mbc p2 afl2 box2) st
                   modify (\x -> x { count = (count st1) - c + (count st2) })
-                  return (us1 ++ us2 ++ units)
+                  return (us1 `IM.union` us2 `IM.union` units)
                 where
                 afl1 = aflBox1 st
                 afl2 = aflBox2 st
@@ -334,34 +327,38 @@ mbc p afl box = do
 
 
 -- Simplex Wall Construction
-getUnitsOnPlane::(SubUnit a b, Ord a, Show a)=>[Point] -> BoxPair -> Plane -> StateMBC a [b]
+getUnitsOnPlane::(SubUnit a b, Ord a, Show a)=>[PointPointer] -> BoxPair -> Plane -> StateMBC a (IntMap b)
 getUnitsOnPlane p pairBox plane = do
     st <- get
+    sP <- liftM setPoint get
+    let
+      getOneActSubUnit    = return.findMax.aflAlpha
+      getOthersSubUnits x = return.(L.delete x).(getAllSubUnits sP)
+      removeSubUnit su    = modify (\x -> x { aflAlpha = delete su (aflAlpha x) })
+      recursion t actSubUnit = case t of
+        Just sig -> do
+          getOthersSubUnits actSubUnit sig >>= mapM_ (splitAF pairBox)
+          removeSubUnit actSubUnit
+          s <- getUnitsOnPlane p pairBox plane
+          cnt <- liftM count get
+          modify (\x -> x { count = cnt + 1 })
+          return $ IM.insert cnt sig s
+        _ -> do
+          modify (\x -> x { externalFaces = actSubUnit : (externalFaces x) })
+          removeSubUnit actSubUnit
+          getUnitsOnPlane p pairBox plane
     if null (debug "inner: " $ aflAlpha st)
         then do
-            return []
+            return IM.empty
         else do
             actSubUnit <- getOneActSubUnit st
-            recursion (buildUnit actSubUnit p) actSubUnit
-    where
-        getOneActSubUnit    = return.findMax.aflAlpha
-        getOthersSubUnits x = return.(L.delete x).getAllSubUnits
-        removeSubUnit su    = modify (\x -> x { aflAlpha = delete su (aflAlpha x) })
-        recursion t actSubUnit = case t of
-            Just sig -> do
-                getOthersSubUnits actSubUnit sig >>= mapM_ (splitAF pairBox)
-                removeSubUnit actSubUnit
-                s <- getUnitsOnPlane p pairBox plane
-                modify (\x -> x { count = (count x) + 1 })
-                return (sig:s)
-            _ -> do
-                modify (\x -> x { externalFaces = actSubUnit : (externalFaces x) })
-                removeSubUnit actSubUnit
-                getUnitsOnPlane p pairBox plane
+            recursion (buildUnit actSubUnit sP p) actSubUnit
 
 
 splitAF::(SubUnit a b, Ord a)=>BoxPair -> ActiveSubUnit a -> StateMBC a ()
-splitAF pairBox e = case subUnitPos pairBox (activeUnit e) of
+splitAF pairBox e = do
+  sP <- liftM setPoint get
+  case subUnitPos pairBox sP (activeUnit e) of
     B1         -> upP1
     B2         -> upP2
     CrossPlane -> upAlpha
@@ -385,12 +382,12 @@ splitAF pairBox e = case subUnitPos pairBox (activeUnit e) of
                     return ()
 
 
-pointSetPartition::(Point -> Position) -> [Point] -> PointPartition
-pointSetPartition func setPoint =  convert $ splitInBox ([],[],[]) setPoint
+pointSetPartition::(Point -> Position) -> SetPoint -> [PointPointer] -> PointPartition
+pointSetPartition func sP ps =  convert $ splitInBox ([],[],[]) ps
     where
         convert (p1,p2,pA) = PointPartition p1 p2 pA
         splitInBox (p1,p2,pA) []     = (p1,p2,pA)
-        splitInBox (p1,p2,pA) (x:xs) = case func x of
+        splitInBox (p1,p2,pA) (x:xs) = case func (sP!x) of
             B1      -> splitInBox (x:p1,p2,pA) xs
             B2      -> splitInBox (p1,x:p2,pA) xs
             OnPlane -> splitInBox (p1,p2,x:pA) xs
@@ -493,45 +490,46 @@ getPlane (a,b,c)
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| First Face |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-makeFirstFace::Plane -> [Point] -> [Point] -> [Point] -> Maybe Face
-makeFirstFace alpha sideA sideB ps = do
-    (pA, pB) <- getFirstEdge alpha sideA sideB
-    (pC, nd) <- getThrirdPoint pA pB ps
+makeFirstFace::Plane -> SetPoint -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe Face
+makeFirstFace alpha sP sideA sideB ps = do
+    (pA, pB) <- getFirstEdge alpha sP sideA sideB
+    (pC, nd) <- getThrirdPoint sP pA pB ps
     return $ Face (pA, pB, pC) nd
 
 
-getFirstEdge::Plane -> [Point] -> [Point] -> Maybe (Point, Point)
-getFirstEdge divPlane ps1 ps2 = do
-    (p1, d1) <- getFirstPoint divPlane ps1
-    (p2, d2) <- getFirstPoint divPlane ps2
+getFirstEdge::Plane -> SetPoint -> [PointPointer] -> [PointPointer] -> Maybe (PointPointer, PointPointer)
+getFirstEdge divPlane sP ps1 ps2 = do
+    (p1, d1) <- getFirstPoint divPlane sP ps1
+    (p2, d2) <- getFirstPoint divPlane sP ps2
     if d1 > d2
-        then climber B1 divPlane p1 p2 ps1 ps2
-        else climber B2 divPlane p1 p2 ps1 ps2
+        then climber B1 divPlane sP p1 p2 ps1 ps2
+        else climber B2 divPlane sP p1 p2 ps1 ps2
 
 
-getFirstPoint::Plane -> [Point] -> Maybe (Point, Double)
-getFirstPoint _ []         = Nothing
-getFirstPoint alpha (x:xs) = Just $ foldl' func d1 xs
+getFirstPoint::Plane -> SetPoint -> [PointPointer] -> Maybe (PointPointer, Double)
+getFirstPoint _ _ []         = Nothing
+getFirstPoint alpha sP (x:xs) = Just $ foldl' func d1 xs
     where
     d1     = (x, dist x)
-    dist x = norm $ getProjOnPlane alpha x
+    dist x = norm $ getProjOnPlane alpha (sP!x)
     func old x
         | d > (snd old) = (x, d)
         | otherwise     = old
         where d = dist x
 
-climber::Position -> Plane -> Point -> Point -> [Point] -> [Point] -> Maybe (Point, Point)
-climber mostDistPoint divPlane p1 p2 ps1 ps2 = goTop p1 p2
+climber::Position -> Plane -> SetPoint -> PointPointer -> PointPointer -> [PointPointer] -> [PointPointer] -> Maybe (PointPointer, PointPointer)
+climber mostDistPoint divPlane sP p1 p2 ps1 ps2 = goTop p1 p2
     where
         goTop p1 p2 = do
-            ppPS1     <- getPP p1 (p1 + projPlaneND) p2 ps1
-            ppPS2     <- getPP p1 (p1 + projPlaneND) p2 ps2
-            facePlane <- getPlane (p1,  (p1 + projPlaneND), p2)
+            ppPS1     <- getPP (sP!p1) (sP!p1 + projPlaneND) (sP!p2) ps1
+            ppPS2     <- getPP (sP!p1) (sP!p1 + projPlaneND) (sP!p2) ps2
+            facePlane <- getPlane (sP!p1,  (sP!p1 + projPlaneND), sP!p2)
             let
-                ps1B1 = pointsOnB1 ppPS1
-                ps1B2 = pointsOnB2 ppPS1
-                ps2B1 = pointsOnB1 ppPS2
-                ps2B2 = pointsOnB2 ppPS2
+                --In a ideal world (p+projPlanaND) should also be execluded
+                ps1B1 = (pointsOnB1 ppPS1) \\ [p1, p2]
+                ps1B2 = (pointsOnB2 ppPS1) \\ [p1, p2]
+                ps2B1 = (pointsOnB1 ppPS2) \\ [p1, p2]
+                ps2B2 = (pointsOnB2 ppPS2) \\ [p1, p2]
 
                 okExit = return (p1, p2)
 
@@ -544,52 +542,52 @@ climber mostDistPoint divPlane p1 p2 ps1 ps2 = goTop p1 p2
                 selByDist x [] = x
                 selByDist _ ps = maximumBy (\a b -> dist a `compare` dist b) ps
 
-                dist x = abs $ dot (x-p1) (planeNormal facePlane)
+                dist x = abs $ dot (sP!x - sP!p1) (planeNormal facePlane)
 
             case (ps1B1, ps1B2, ps2B1, ps2B2) of
                 ([], _ , [], _ ) -> okExit
                 (_ , [], _ , []) -> okExit
                 _                -> move
 
-        getPP::Point -> Point -> Point -> [Point] -> Maybe PointPartition
+        getPP::Point -> Point -> Point -> [PointPointer] -> Maybe PointPartition
         getPP _  _  _  [] = Nothing
         getPP p1 p2 p3 ps = func <$> getPlane (p1, p2, p3)
-                where func x = pointSetPartition (whichSideOfPlane x) (ps \\ [p1, p2, p3])
+                where func x = pointSetPartition (whichSideOfPlane x) sP ps 
 
         projPOnDivPlane
-            | mostDistPoint == B1 = calcProjOnDivPlane p1
-            | mostDistPoint == B2 = calcProjOnDivPlane p2
+            | mostDistPoint == B1 = calcProjOnDivPlane (sP!p1)
+            | mostDistPoint == B2 = calcProjOnDivPlane (sP!p2)
 
         projPlaneND = (pack.normalize.(cross (unpack $ planeNormal divPlane)).unpack) projPOnDivPlane
         calcProjOnDivPlane = getProjOnPlane divPlane
 
 
-getThrirdPoint::Point -> Point -> [Point] -> Maybe (Point, Point)
-getThrirdPoint pA pB setPoint = scan setPoint
+getThrirdPoint::SetPoint -> PointPointer -> PointPointer -> [PointPointer] -> Maybe (PointPointer, Point)
+getThrirdPoint sP pA pB ps = scan ps
     where
-    cleanList x = setPoint \\ [pA, pB, x]
+    cleanList x = ps \\ [pA, pB, x]
     scan [] = Nothing
-    scan (p:ps)
-        | p == pA || p == pB = scan ps
-        | otherwise = case getPlane (pA, pB, p) of
+    scan (x:xs)
+        | x == pA || x == pB = scan xs
+        | otherwise = case getPlane (sP!pA, sP!pB, sP!x) of
             Just plane
                 | (L.null.pointsOnB1) pp &&
                   (L.null.pointsOnB2) pp -> Nothing
-                | (L.null.pointsOnB1) pp -> return (p, nd)
-                | (L.null.pointsOnB2) pp -> return (p, ind)
-                | otherwise              -> scan ps
-                where pp = pointSetPartition (whichSideOfPlane plane) (cleanList p)
+                | (L.null.pointsOnB1) pp -> return (x, nd)
+                | (L.null.pointsOnB2) pp -> return (x, ind)
+                | otherwise              -> scan xs
+                where pp = pointSetPartition (whichSideOfPlane plane) sP (cleanList x)
                       nd = planeNormal plane
                       ind = nd * (Vec3D (-1) (-1) (-1))
-            Nothing    -> scan ps
+            Nothing    -> scan xs
 
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| DeHull |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-edgePos::BoxPair -> Edge -> Position
-edgePos pairBox (Edge a b) = case (findPos a, findPos b) of
+edgePos::BoxPair -> SetPoint -> Edge -> Position
+edgePos pairBox sP (Edge a b) = case (findPos $ sP!a, findPos $ sP!b) of
         (B1,B1)      -> B1
         (B2,B2)      -> B2
         (B1,OnPlane) -> B1
@@ -602,8 +600,8 @@ edgePos pairBox (Edge a b) = case (findPos a, findPos b) of
         where findPos  = whichBoxIsIt pairBox
 
 
-extractAllFaceEdges::Face -> [ActiveSubUnit Edge]
-extractAllFaceEdges sigma = fsAll
+extractAllFaceEdges::SetPoint -> Face -> [ActiveSubUnit Edge]
+extractAllFaceEdges sP sigma = fsAll
     where
         (a,b,c) = facePoints sigma
         nd      = refND sigma
@@ -611,13 +609,13 @@ extractAllFaceEdges sigma = fsAll
                   , ActiveUnit (Edge a c) b nd
                   , ActiveUnit (Edge b c) a nd ]
 
-makeFace::ActiveSubUnit Edge -> [Point] -> Maybe Face
-makeFace _ [] = Nothing
-makeFace e ps = do
+makeFace::ActiveSubUnit Edge -> SetPoint -> [PointPointer] -> Maybe Face
+makeFace _ _ [] = Nothing
+makeFace e sP ps = do
     refPoint  <- get1stAng ps
     (pC, ang) <- findNext refPoint
-    nd        <- planeNormal <$> getPlane (pA, pB, pC)
-    return $ buildFace pC (func pC ang nd)
+    nd        <- planeNormal <$> getPlane (sP!pA, sP!pB, sP!pC)
+    return $ buildFace pC (func (sP!pC) ang nd)
     where
         pA = (pointL.activeUnit) e
         pB = (pointR.activeUnit) e
@@ -628,18 +626,18 @@ makeFace e ps = do
         get1stAng (p:ps)
             | isNaN ang = get1stAng ps
             | otherwise = Just $ (p, ang)
-            where ang = calcAngBetweenSimplex e p
+            where ang = calcAngBetweenSimplex e sP p
 
         scanMax old x
             | isNaN ang       = old
             | ang < (snd old) = (x, ang)
             | otherwise       = old
-            where ang = calcAngBetweenSimplex e x
+            where ang = calcAngBetweenSimplex e sP x
 
         findNext a1 = return $ foldl' scanMax a1 ps
         ind x     = ((*) (Vec3D (-1) (-1) (-1))) x
-        disND p x   = calcAngBetweenSimplex $ fakeEdge pA pB (p + x)
-        fakeEdge a b c = ActiveUnit (Edge a b) c c
+        disND p x   = calcAngBetweenSimplex $ fakeEdge pA pB (sP!p + x)
+        fakeEdge a b c = ActiveUnit (Edge a b) a c
         func::Point -> Double -> Point -> Point
         func p ang nd
             | ang > 0   = if dot nd oldND > 0 then ind nd else nd
@@ -647,17 +645,18 @@ makeFace e ps = do
             | otherwise = nd --if (disND p nd) > ang then nd else ind nd
 
 
-calcAngBetweenSimplex::ActiveSubUnit Edge -> Point -> Double
-calcAngBetweenSimplex ae p
+calcAngBetweenSimplex::ActiveSubUnit Edge -> SetPoint -> PointPointer -> Double
+calcAngBetweenSimplex ae sP p
     | pA==p || pB==p || pC==p = 0/0
     | otherwise               = dot (normalToEdge vOnOldFace) (normalToEdge vOnNewFace)
     where
         pA = (pointL.activeUnit) ae
         pB = (pointR.activeUnit) ae
         pC = assocP ae
-        edge = pA - pB
-        vOnOldFace = pC - pB
-        vOnNewFace = p  - pB
+        pB'        = sP!pB
+        edge       = sP!pA - pB'
+        vOnOldFace = sP!pC - pB'
+        vOnNewFace = sP!p  - pB'
         -- Projection A in B = B * (A°B)/(B°B)
         projToEdge x = edge * (Vec3D k k k)
             where k = (dot x edge) / (dot edge edge)
@@ -668,14 +667,14 @@ calcAngBetweenSimplex ae p
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| DeWall |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-makeFirstSimplex::Plane -> [Point] -> [Point] -> [Point] -> Maybe Simplex
-makeFirstSimplex alpha sideA sideB ps = do
-    face <- makeFirstFace alpha sideA sideB ps
-    let actFace = ActiveUnit { activeUnit=face, assocP=(Vec3D 0 0 0), assocND=refND face }
-    makeSimplex actFace ps
+makeFirstSimplex::Plane -> SetPoint -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe Simplex
+makeFirstSimplex alpha sP sideA sideB ps = do
+    face <- makeFirstFace alpha sP sideA sideB ps
+    let actFace = ActiveUnit { activeUnit=face, assocP=(-1), assocND=refND face }
+    makeSimplex actFace sP ps
 
-facePos::BoxPair -> Face -> Position
-facePos pairBox (Face (a,b,c) _ ) = case (findPos a, findPos b, findPos c) of
+facePos::BoxPair -> SetPoint -> Face -> Position
+facePos pairBox sP (Face (a,b,c) _ ) = case (findPos $ sP!a, findPos $ sP!b, findPos $ sP!c) of
     (B1,B1,B1)                -> B1
     (B2,B2,B2)                -> B2
     (B1,OnPlane,OnPlane)      -> B1
@@ -698,45 +697,45 @@ facePos pairBox (Face (a,b,c) _ ) = case (findPos a, findPos b, findPos c) of
     where findPos  = whichBoxIsIt pairBox
 
 
-extractAllSimplexFaces::Simplex -> [ActiveSubUnit Face]
-extractAllSimplexFaces sigma = map toSimplexFace fsAll
+extractAllSimplexFaces::SetPoint -> Simplex -> [ActiveSubUnit Face]
+extractAllSimplexFaces sP sigma = map toSimplexFace fsAll
     where
     (a,b,c,d) = setCellID sigma
     fsAll  = [((a,b,d), c), ((a,d,c), b), ((d,b,c), a), ((a,b,c), d)]
     toSimplexFace fp@(f, x) = ActiveUnit { activeUnit=(Face f nd), assocP=x, assocND=nd }
         where nd = outterND fp
-    outterND ((a,b,c), x) = if (dot (a - x) nd) > 0 then inv nd else nd
+    outterND ((a,b,c), x) = if (dot (sP!a - sP!x) nd) > 0 then inv nd else nd
         where
-        nd    = pack $ normalize (unpack (b - a)) `cross` (unpack (c - a))
+        nd    = pack $ normalize (unpack (sP!b - sP!a)) `cross` (unpack (sP!c - sP!a))
         inv v = (Vec3D (-1) (-1) (-1)) * v
 
-makeSimplex::ActiveSubUnit Face -> [Point] -> Maybe Simplex
-makeSimplex actFace p = do
+makeSimplex::ActiveSubUnit Face -> SetPoint -> [PointPointer] -> Maybe Simplex
+makeSimplex actFace sP ps = do
     minR <- findMinRadius
     sigma <- buildSimplexFace minR
-    if debug ("sigma: " ++ show sigma) $ testProperTetrahedron p sigma then return sigma else (error "Fuck!!!!")
+    if debug ("sigma: " ++ show sigma) $ testProperTetrahedron sP ps sigma then return sigma else (error "Fuck!!!!")
     where
         buildSimplexFace (_, d) = return Simplex {circumSphereCenter = center, setCellID=(a,b,c,d)}
-            where (_, center) = getCircumSphere (a, b, c) d
+            where (_, center) = getCircumSphere (sP!a, sP!b, sP!c) (sP!d)
 
         -- | Remove points from face to avoid get 0.0 in findMin
-        cleanP        = filter (\i -> (isSideOk i) && (i /= a) && (i /= b) && (i /= c)) p
-        findMinRadius = findMinimunButZero (getRadius actFace) cleanP
-        isSideOk i    = 0 < dot (a - i) nd
+        cleanP        = filter (\i -> (isSideOk i) && (i /= a) && (i /= b) && (i /= c)) ps
+        findMinRadius = findMinimunButZero (getRadius sP actFace) sP cleanP
+        isSideOk i    = 0 < dot (sP!a - sP!i) nd
         face@(a,b,c)  = (facePoints.activeUnit) actFace
         nd            = (refND.activeUnit) actFace
 
 
-getRadius::ActiveSubUnit Face -> Point -> Double
-getRadius actFace i
+getRadius::SetPoint -> ActiveSubUnit Face -> Point -> Double
+getRadius sP actFace i
     | (getSide center)       && (getSide i)       = radius
     | (not $ getSide center) && (not $ getSide i) = radius
     | otherwise                                   = (-radius)
     where
         nd               = (refND.activeUnit) actFace
-        getSide x        = 0 > (nd `dot` (a - x))
+        getSide x        = 0 > (nd `dot` (sP!a - x))
         face@(a,b,c)     = (facePoints.activeUnit) actFace
-        (radius, center) = getCircumSphere face i
+        (radius, center) = getCircumSphere (sP!a, sP!b, sP!c) i
 
 
 getCircumSphere::(Point, Point, Point) -> Point -> (Double, Point)
@@ -763,41 +762,42 @@ getCircumSphere (a, b, c) d = (radius, center)
 
 -- | Performance can be improve by removing the duplicate call to "func" in "dropZero" and the first "(func x, x)"
 -- | OBS: Not the closest to zero. In that case
-findClosestButZero::(Point -> Double) -> [Point] -> Maybe (Double, Point)
+findClosestButZero::(Point -> Double) -> SetPoint -> [PointPointer] -> Maybe (Double, PointPointer)
 findClosestButZero func = findMinimunButZero (abs.func)
 
 
 -- | Performance can be improve by removing the duplicate call to "func" in "dropZero" and the first "(func x, x)"
 -- | OBS: Not the closest to zero. In that case
-findMinimunButZero::(Point -> Double) -> [Point] -> Maybe (Double, Point)
-findMinimunButZero func p = case pStartWithNoZero of
+findMinimunButZero::(Point -> Double) -> SetPoint -> [PointPointer] -> Maybe (Double, PointPointer)
+findMinimunButZero func sP ps = case pStartWithNoZero of
     []     -> Nothing
-    (x:xs) -> Just $ foldl' (\pair i -> foldMaybe pair (func i, i)) (func x, x) xs
+    (x:xs) -> Just $ foldl' (\pair i -> foldMaybe pair (func' i, i)) (func' x, x) xs
     where
-        pStartWithNoZero = dropWhile dropZero p
-        dropZero = (flip$(==).func) 0
-        foldMaybe new@(n, i) old@(nOld, iOld)
-                | n == 0 = old
-                | n > nOld = old
-                | n < nOld = new
-                | otherwise = error $ "Multiple points on circle or sphere! " ++ show new
+      func' = func.(sP!)
+      pStartWithNoZero = dropWhile dropZero ps
+      dropZero = (flip$(==).func') 0
+      foldMaybe new@(n, i) old@(nOld, iOld)
+        | n == 0 = old
+        | n > nOld = old
+        | n < nOld = new
+        | otherwise = error $ "Multiple points on circle or sphere! " ++ show new
 
 
 -- ^^^^^^^^^^^^^^^ GARBAGE
-testProperTetrahedron::[Vec3D] -> Simplex -> Bool
-testProperTetrahedron ps sigma = isCenterOK && isSphereOK
+testProperTetrahedron::SetPoint -> [PointPointer] -> Simplex -> Bool
+testProperTetrahedron sP ps sigma = isCenterOK && isSphereOK
     where
     error_precisson = (10e-8)
     (pA,pB,pC,pD)  = setCellID sigma
     center         = circumSphereCenter sigma
-    radius         = norm $ pA - center
+    radius         = norm $ sP!pA - center
     cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC) && (i /= pD)) ps
     -- | Test if the it is the center of the simplex
     isCenterOK     = and $ map testCenter [pA,pB,pC,pD]
-    testCenter i   = error_precisson > (abs $ (norm $ center - i) - radius)
+    testCenter i   = error_precisson > (abs $ (norm $ center - sP!i) - radius)
     -- | Test if the CircumSphere is empty
     isSphereOK     = and $ map testEmptySph cleanP
-    testEmptySph i = radius < norm (i - center)
+    testEmptySph i = radius < norm (sP!i - center)
 
 
 
