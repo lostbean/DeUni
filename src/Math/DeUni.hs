@@ -28,10 +28,11 @@
 module Math.DeUni
 ( runDeHull
 , runDeWall
-, Face      (facePoints, refND)
-, Simplex   (circumSphereCenter, setCellID)
+, Face         (facePoints, refND)
+, Simplex      (circumSphereCenter, setCellID)
+, PointPointer (..)
 , getCircumSphere
-, Box       (..)
+, Box          (..)
 
 
 -- Remove after test
@@ -314,16 +315,15 @@ mbc p afl box = do
                 (False, False, False, _ ,    _    ) -> do
                   let c = count st
                       (us1, st1) = runState (mbc p1 afl1 box1) st
-                      (us2, st2) = runState (mbc p2 afl2 box2) st
-                  modify (\x -> x { count = (count st1) - c + (count st2) })
+                      (us2, st2) = runState (mbc p2 afl2 box2) st1
+                  --modify (\x -> x { count = (count st1) - c + (count st2) })
+                  modify (\x -> x { count = count st2 })
                   return (us1 `IM.union` us2 `IM.union` units)
                 where
                 afl1 = aflBox1 st
                 afl2 = aflBox2 st
                 box1 = halfBox1 pairBox
                 box2 = halfBox2 pairBox
-                --us1  = evalState (mbc p1 afl1 box1) st
-                --us2  = evalState (mbc p2 afl2 box2) st
 
 
 -- Simplex Wall Construction
