@@ -28,14 +28,22 @@
 module Math.DeUni
 ( runDeHull
 , runDeWall
+, reRunDeWall
 , Face         (facePoints, refND)
-, Simplex      (circumSphereCenter, setCellID)
+, Simplex      (circumSphereCenter, circumRadius, setCellID)
 , PointPointer (..)
-, getCircumSphere
+, Point
+, SetPoint
+, SetSimplex
+, SetFace
 , Box          (..)
-
+, StateVarsMBC (..)
+, SetActiveSubUnits
+, ActiveSubUnit (..)
+, extractAllSimplexFaces
 
 -- Remove after test
+, getCircumSphere
 , genPlane
 , pointSetPartition
 , whichBoxIsIt
@@ -45,7 +53,6 @@ module Math.DeUni
 , makeFirstSimplex
 , makeFirstFace
 , makeSimplex
-, ActiveSubUnit (..)
 , whichSideOfPlane
 , getPlane
 , isInBox
@@ -97,6 +104,7 @@ instance Ord Vec3D where
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 data Simplex = Simplex
     { circumSphereCenter :: Point
+    , circumRadius       :: Double  
     , setCellID          :: (PointPointer, PointPointer, PointPointer, PointPointer)
     } deriving (Show, Eq)
 
@@ -208,16 +216,16 @@ data BoxPair = BoxPair
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- | Group the data that must be update along the computation (State).
 --   Use of state monad will make it clear and keep the purity of the code.
-data SubUnitsSets a = SubUnitsSets
+data StateVarsMBC a = StateVarsMBC
     { aflAlpha, aflBox1, aflBox2 :: Set (ActiveSubUnit a)
-    , externalFaces              :: [ActiveSubUnit a]
+    , externalFaces              :: Set (ActiveSubUnit a)
     , randomSeed                 :: StdGen
     , count                      :: Int
     , setPoint                   :: SetPoint
     } deriving (Show)
 
 type SetActiveSubUnits a = Set (ActiveSubUnit a)
-type StateMBC a          = State (SubUnitsSets a)
+type StateMBC a          = State (StateVarsMBC a)
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 class SubUnit subUnit unit | subUnit -> unit, unit -> subUnit where
@@ -242,22 +250,27 @@ instance SubUnit Face Simplex where
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Exposed functions |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-runDeHull::Box -> SetPoint -> [PointPointer] -> (SetFace, SubUnitsSets Edge)
+reRunDeWall::StateVarsMBC Face -> Box -> SetPoint -> [PointPointer] -> SetActiveSubUnits Face -> (SetSimplex, StateVarsMBC Face)
+reRunDeWall st box sP ps faces = runState (mbc ps faces box) init
+  where
+    init = st { aflAlpha=empty, aflBox1=empty, aflBox2=empty, setPoint=sP }
+
+runDeHull::Box -> SetPoint -> [PointPointer] -> (SetFace, StateVarsMBC Edge)
 runDeHull box sP ps = runState (mbc ps (empty::SetActiveSubUnits Edge) box) init
   where
     init = initState sP
 
 
-runDeWall::Box -> SetPoint -> [PointPointer] -> (SetSimplex, SubUnitsSets Face)
+runDeWall::Box -> SetPoint -> [PointPointer] -> (SetSimplex, StateVarsMBC Face)
 runDeWall box sP ps = runState (mbc ps (empty::SetActiveSubUnits Face) box) init
   where
     init = initState sP
 
-initState sP = SubUnitsSets
+initState sP = StateVarsMBC
     { aflAlpha      = empty
     , aflBox1       = empty
     , aflBox2       = empty
-    , externalFaces = []
+    , externalFaces = empty
     , randomSeed    = mkStdGen 240779
     , count         = 0
     , setPoint      = sP
@@ -317,6 +330,7 @@ mbc p afl box = do
                       (us1, st1) = runState (mbc p1 afl1 box1) st
                       (us2, st2) = runState (mbc p2 afl2 box2) st1
                   --modify (\x -> x { count = (count st1) - c + (count st2) })
+                  modify (\x -> x {externalFaces=(externalFaces st1) `union` (externalFaces st2)})
                   modify (\x -> x { count = count st2 })
                   return (us1 `IM.union` us2 `IM.union` units)
                 where
@@ -344,7 +358,7 @@ getUnitsOnPlane p pairBox plane = do
           modify (\x -> x { count = cnt + 1 })
           return $ IM.insert cnt sig s
         _ -> do
-          modify (\x -> x { externalFaces = actSubUnit : (externalFaces x) })
+          modify (\x -> x { externalFaces = insert actSubUnit (externalFaces x) })
           removeSubUnit actSubUnit
           getUnitsOnPlane p pairBox plane
     if null (debug "inner: " $ aflAlpha st)
@@ -713,10 +727,13 @@ makeSimplex::ActiveSubUnit Face -> SetPoint -> [PointPointer] -> Maybe Simplex
 makeSimplex actFace sP ps = do
     minR <- findMinRadius
     sigma <- buildSimplexFace minR
-    if debug ("sigma: " ++ show sigma) $ testProperTetrahedron sP ps sigma then return sigma else (error "Fuck!!!!")
+    return sigma
+    --if debug ("sigma: " ++ show sigma) $ testProperTetrahedron sP ps sigma then return sigma else (error "Fuck!!!!")
     where
-        buildSimplexFace (_, d) = return Simplex {circumSphereCenter = center, setCellID=(a,b,c,d)}
-            where (_, center) = getCircumSphere (sP!a, sP!b, sP!c) (sP!d)
+        buildSimplexFace (_, d) = return Simplex { circumSphereCenter = center
+                                                 , circumRadius = radius
+                                                 , setCellID = (a,b,c,d) }
+            where (radius, center) = getCircumSphere (sP!a, sP!b, sP!c) (sP!d)
 
         -- | Remove points from face to avoid get 0.0 in findMin
         cleanP        = filter (\i -> (isSideOk i) && (i /= a) && (i /= b) && (i /= c)) ps
@@ -785,20 +802,24 @@ findMinimunButZero func sP ps = case pStartWithNoZero of
 
 -- ^^^^^^^^^^^^^^^ GARBAGE
 testProperTetrahedron::SetPoint -> [PointPointer] -> Simplex -> Bool
-testProperTetrahedron sP ps sigma = isCenterOK && isSphereOK
+testProperTetrahedron sP ps sigma = if isRadiusOK && isCenterOK && isSphereOK
+                                    then True
+                                    else error $ "Puta Merda " ++ show (isCenterOK, isSphereOK)
     where
     error_precisson = (10e-8)
     (pA,pB,pC,pD)  = setCellID sigma
     center         = circumSphereCenter sigma
-    radius         = norm $ sP!pA - center
+    radius         = circumRadius sigma
+    isRadiusOK     = error_precisson > (abs $ radius - (norm $ sP!pA - center))
     cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC) && (i /= pD)) ps
     -- | Test if the it is the center of the simplex
     isCenterOK     = and $ map testCenter [pA,pB,pC,pD]
     testCenter i   = error_precisson > (abs $ (norm $ center - sP!i) - radius)
     -- | Test if the CircumSphere is empty
     isSphereOK     = and $ map testEmptySph cleanP
-    testEmptySph i = radius < norm (sP!i - center)
-
+    testEmptySph i = if radius < norm (sP!i - center)
+                     then True
+                     else error $ "Puta Merda " ++ show (i, sP!i, sigma)
 
 
 
