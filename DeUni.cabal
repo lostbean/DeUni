@@ -1,6 +1,6 @@
 Name:                DeUni
 Version:             0.2.1
-License:             GNU General Public License, version 3
+License:             GPL-3
 License-file:        LICENSE
 Author:              Edgar Gomes de Araujo
 Maintainer:          Edgar Gomes de Araujo <talktoedgar@gmail.com>
@@ -25,4 +25,10 @@ library
                         , diffarray  -any
 
     Exposed-modules:    Math.DeUni
+                        Math.WeightedPoint
+                        Math.DeWall
+                        Math.DeHull
+                        Math.Types
+                        Math.FirstSeed
+                        Math.GeometricTools
     Extensions: 
