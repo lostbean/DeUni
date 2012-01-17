@@ -64,7 +64,7 @@ prop_ConvHull box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Hull3D_err.vt
   where
     fulltest    = testHull .&&. testClosure .&&. testSize
     (hull, st)  = runHull3D box sp ixps
-    testh x     = testFace sp x .&&. testHullFace sp x
+    testh x     = testHullFace sp x
     testHull    = testIM testh hull
     testSize    = msgFail "gen obj /= num add" $ IM.size hull == count st
     testClosure = msgFail "open Hull" $ (S.null.externalFaces) st
@@ -78,7 +78,7 @@ prop_Delaunay box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Delaunay3D_er
     fulltest   = testWall .&&. testHull .&&. testSize
     (wall, st) = runDelaunay3D box sp ixps
     testw x    = testProperTetrahedron sp x
-    testh x    = testFace sp x .&&. testHullFace sp x
+    testh x    = testHullFace sp x
     testWall   = testIM testw wall
     testHull   = testSet testh (S.map activeUnit $ externalFaces st)
     ixps       = indices sp
@@ -152,7 +152,7 @@ prop_1stFace box sP = pretest ==> test
     p2 = (pointsOnB2 pp) ++ (pointsOnPlane pp)
     pretest = (length p) > 4 && p1 /= [] && p2 /= []
     test = case makeFirstFace plane sP p1 p2 p of
-        Just face -> testFace sP face .&&. testHullFace sP face
+        Just face -> testHullFace sP face
         _         -> msgFail "non-gen 1st Face3D" False
 
 
@@ -172,19 +172,6 @@ testProperTetrahedron sP sigma = msgFail ("bad tetrahedron center ", map testC [
     isSphereOK     = and $ map testEmptySph cleanP
     testEmptySph i = radius < norm (sP!.i &- center)
 
-
-testFace::SetPoint Point3D -> S1 Point3D -> Property
-testFace sP face = msgFail "ND invalid" isNDOK -- .&&. msgFail "non-Hull face" isHullOK
-  where
-    (pA,pB,pC)   = face3DPoints face
-    nd           = face3DND face
-    cleanP       = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) (indices sP)
-    -- | Test Normal vector. The inner product must to be zero between ND and the vector in the face
-    isNDOK       = and $ map testND [(pA,pB),(pB,pC),(pC,pA)]
-    testND (a,b) = error_precisson > (abs $ nd &. (sP!.a &- sP!.b))
-    -- | Test if the face is a hull. All others points must lie on the opposite side defined by the ND
-    isHullOK     = and $ map testHull cleanP
-    testHull i   = nd &. (sP!.i &- sP!.pA) < 0
 
 
 testHullFace::SetPoint Point3D -> S1 Point3D -> Property

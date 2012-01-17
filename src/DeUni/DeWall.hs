@@ -139,7 +139,7 @@ get1stUnits pairBox plane p1 p2 p = do
   sP <- liftM setPoint get
   case build1stUnit plane sP p1 p2 p of
     Just unit -> do
-      mapM_ (splitAF pairBox) (getAllSubUnits sP unit)
+      mapM_ (splitAF pairBox) (getAllSubUnits Nothing sP unit)
       units <- getUnitsOnPlane pairBox plane p
       cnt   <- liftM count get
       modify (\x -> x { count = cnt + 1 })
@@ -155,7 +155,7 @@ getUnitsOnPlane pairBox plane p = do
   let
     sP                     = setPoint st
     getOneActSubUnit       = return.S.findMax.aflAlpha
-    getOthersSubUnits x    = return.(L.delete x).(getAllSubUnits sP)
+    getOthersSubUnits x    = return.(L.delete x).(getAllSubUnits (Just x) sP)
     removeSubUnit su       = modify (\x -> x { aflAlpha = S.delete su (aflAlpha x) })
     recursion t actSubUnit = case t of
       Just sig -> do

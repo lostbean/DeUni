@@ -48,7 +48,7 @@ instance PointND Point3D where
   
   data S1 Point3D      = Face3D
    { face3DPoints   :: (PointPointer, PointPointer, PointPointer)
-   , face3DND       :: Point3D
+   --, face3DND       :: Point3D
    } deriving (Show)
   
   data S2 Point3D      = Tetrahedron
@@ -133,16 +133,14 @@ getThrirdPoint sP pA pB ps = scan ps
     scan (x:xs)
       | x == pA || x == pB = scan xs
       | otherwise =
-        let face = Face3D { face3DPoints = (pA, pB, x), face3DND = undefined }
+        let face = Face3D { face3DPoints = (pA, pB, x) }
         in case calcPlane sP face of
           Just plane
-            | (L.null.pointsOnB1) pp &&
-              (L.null.pointsOnB2) pp -> Nothing
-            | (L.null.pointsOnB1) pp -> return (x, nd)
-            | (L.null.pointsOnB2) pp -> return (x, ind)
-            | otherwise              -> scan xs
+            | (L.null.pointsOnB1) pp && (L.null.pointsOnB2) pp -> Nothing
+            | (L.null.pointsOnB1) pp                           -> return (x, nd)
+            | (L.null.pointsOnB2) pp                           -> return (x, neg nd)
+            | otherwise                                        -> scan xs
             where pp = pointSetPartition (whichSideOfPlane plane) sP (cleanList x)
                   nd = planeNormal plane
-                  ind = nd &* (-1)
           Nothing    -> scan xs
           
