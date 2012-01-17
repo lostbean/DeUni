@@ -1,34 +1,44 @@
-Name:                DeUni
-Version:             0.2.1
-License:             GPL-3
-License-file:        LICENSE
-Author:              Edgar Gomes de Araujo
-Maintainer:          Edgar Gomes de Araujo <talktoedgar@gmail.com>
+Name:                   DeUni
+Version:                0.3
+License:                GPL-3
+License-file:           LICENSE
+Author:                 Edgar Gomes de Araujo
+Maintainer:             Edgar Gomes de Araujo <talktoedgar@gmail.com>
 Homepage:            
-Stability:           Experimental
-Synopsis:            3D Convex Hull and Delaunay triangulation generator
+Stability:              Experimental
+Synopsis:               3D Convex Hull and Delaunay triangulation generator
 Description:         
     3D Convex Hull and Delaunay triangulation generator based on MBC
     (Marriage Before Conquer).
-Cabal-version:       >=1.2.0
-Build-type:          Simple
-Category:            Data, Math
+Cabal-version:          >=1.2.0
+Build-type:             Simple
+Category:               Data, Math
 
+Flag test
+    Description:        Build the test suite, including an executable to run it.
+    Default:            False
 
 library
     hs-source-dirs:     src
     Build-Depends:        base       <=5
-                        , Vec        -any
+                        , random     -any
                         , containers -any
                         , mtl        -any
-                        , random     -any
                         , diffarray  -any
 
-    Exposed-modules:    Math.DeUni
-                        Math.WeightedPoint
-                        Math.DeWall
-                        Math.DeHull
-                        Math.Types
-                        Math.FirstSeed
-                        Math.GeometricTools
-    Extensions: 
+    Exposed-modules:    DeUni.DeWall
+                        Math.Vector
+
+Executable tester
+    if flag(test)
+      Buildable:        True
+      Build-Depends:    QuickCheck >= 2.1 && < 2.1.2
+    else
+      Buildable:        True
+    hs-source-dirs:     src
+    main-is:            Main.hs
+    build-depends:        base            <=5
+                        , QuickCheck      >=2
+                        , text            -any
+                        , xml-types       -any
+                        , xml-enumerator  -any
