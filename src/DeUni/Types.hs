@@ -93,7 +93,7 @@ compFace a b = compare a' b'
 data (Buildable simplex dim) => ActiveSubUnit simplex dim = ActiveUnit
     { activeUnit :: (Sub simplex) dim
     , assocP     :: PointPointer
-    , assocND    :: Point3D
+    , assocND    :: dim
     }
 
 instance (Ord (Sub simplex dim), Buildable simplex dim) => Ord (ActiveSubUnit simplex dim) where
@@ -161,7 +161,7 @@ class (PointND dim) => Buildable simplex dim where
   subUnitPos        :: BoxPair dim -> SetPoint dim -> ActiveSubUnit simplex dim -> Position
 
 
-class (Vector p, DotProd p, CrossProd p, Show p) => PointND p where
+class (Vector p, DotProd p, Show p) => PointND p where
   data Box p   :: *
   data Plane p :: *
   data S0 p    :: *

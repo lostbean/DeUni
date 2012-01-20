@@ -8,6 +8,7 @@ module DeUni.GeometricTools where
 import Prelude hiding (null, lookup)
 import Control.Applicative ((<$>))
 import Control.Monad.State.Lazy
+import Data.List (foldl')
 import Data.Maybe
 import Data.Array.Diff hiding (elems)
 
@@ -22,6 +23,9 @@ projAonB a b = b &* ((a &. b) / (b &. b))
 -- | Normal component of A to B
 normalofAtoB::(Vector a, DotProd a) => a -> a -> a
 normalofAtoB a b = normalize $ a &- (projAonB a b)
+
+powerDist::(PointND a) => WPoint a -> WPoint a -> Double
+powerDist a b = (normsqr $ point a &- point b) - weigth a - weigth b
 
 whichSideOfPlane::(PointND a) => Plane a -> a -> Position
 whichSideOfPlane plane p = case compare projection dist of
@@ -98,3 +102,19 @@ facePos pairBox sP a b c = case (findPos $ sP!.a, findPos $ sP!.b, findPos $ sP!
     (_,_,None)                -> None
     _                         -> CrossPlane
     where findPos  = whichBoxIsIt pairBox
+
+
+-- | Performance can be improve by removing the duplicate call to "func" in "dropZero"
+-- and the first "(func x, x)"
+findMinimunButZero::(PointND a)=>(PointPointer -> Double) -> SetPoint a -> [PointPointer] -> Maybe (Double, PointPointer)
+findMinimunButZero func sP ps = case pStartWithNoZero of
+    []     -> Nothing
+    (x:xs) -> Just $ foldl' (\pair i -> foldMaybe pair (func i, i)) (func x, x) xs
+    where
+      pStartWithNoZero = dropWhile dropZero ps
+      dropZero = (flip$(==).func) 0
+      foldMaybe new@(n, i) old@(nOld, iOld)
+        | n == 0   = old
+        | n > nOld = old
+        | n < nOld = new
+        | otherwise = error $ "Multiple points on circle or sphere! " ++ show new 

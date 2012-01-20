@@ -22,6 +22,7 @@ import DeUni.Types
 import DeUni.FirstSeed
 import DeUni.Dim3.Base3D
 import DeUni.Dim3.Hull3D
+import DeUni.Dim3.ReTri3D
 import Math.Vector
 
 
@@ -68,69 +69,19 @@ makeSimplex actFace sP ps = do
   return sigma
   where
     buildSimplexFace (_, d) =
-      let (radius, center) = getCircumSphere (sP!.a, sP!.b, sP!.c) (sP!.d) 
+      let (radius, center) = getCircumSphere (sP!a) (sP!b) (sP!c) (sP!d) 
       in return Tetrahedron { circumSphereCenter = center
                             , circumRadius = radius
                             , tetraPoints  = (a,b,c,d) }
     -- | Remove points from face to avoid get 0.0 in findMin
     cleanP        = filter (\i -> (isSideOk i) && (i /= a) && (i /= b) && (i /= c)) ps
-    findMinRadius = findMinimunButZero (getRadius sP actFace) sP cleanP
+    findMinRadius = findMinimunButZero (getFaceDist sP actFace) sP cleanP
     isSideOk i    = 0 < (sP!.a &- sP!.i) &. nd
     face@(a,b,c)  = (face3DPoints.activeUnit) actFace
     nd            = assocND actFace
+ 
 
-
-getRadius::SetPoint Point3D -> ActiveSubUnit S2 Point3D -> Point3D -> Double
-getRadius sP actFace i
-  | (getSide center)       && (getSide i)       = radius
-  | (not $ getSide center) && (not $ getSide i) = radius
-  | otherwise                                   = (-radius)
+getFaceDist::SetPoint Point3D -> ActiveSubUnit S2 Point3D -> PointPointer -> Double
+getFaceDist sP actFace i = fst $ getFaceDistCenter (sP!a) (sP!b) (sP!c) (sP!i)
   where
-    nd               = assocND actFace
-    getSide x        = 0 > nd &. (sP!.a &- x)
-    face@(a,b,c)     = (face3DPoints.activeUnit) actFace
-    (radius, center) = getCircumSphere (sP!.a, sP!.b, sP!.c) i
-
-
-getCircumSphere::(Point3D, Point3D, Point3D) -> Point3D -> (Double, Point3D)
-getCircumSphere (a, b, c) d = (radius, center)
-  where
-    radius   = abs $ (norm q)/div
-    center   = a &+ (q &* (1/div))
-
-    ref      = a
-    deltaA   = b &- ref
-    deltaB   = c &- ref
-    deltaC   = d &- ref
-    crossB_C = deltaB &^ deltaC
-    crossC_A = deltaC &^ deltaA
-    crossA_B = deltaA &^ deltaB
-    x        = (normsqr deltaA) *& crossB_C
-    w        = (normsqr deltaB) *& crossC_A
-    t        = (normsqr deltaC) *& crossA_B
-    div      = 2 * (deltaA &. crossB_C)
-    q        = x &+ w &+ t
-
-
--- | Performance can be improve by removing the duplicate call to "func" in "dropZero" and the first "(func x, x)"
--- | OBS: Not the closest to zero. In that case
-findClosestButZero::(Point3D -> Double) -> SetPoint Point3D -> [PointPointer] -> Maybe (Double, PointPointer)
-findClosestButZero func = findMinimunButZero (abs.func)
-
-
--- | Performance can be improve by removing the duplicate call to "func" in "dropZero" and the first "(func x, x)"
--- | OBS: Not the closest to zero. In that case
-findMinimunButZero::(Point3D -> Double) -> SetPoint Point3D -> [PointPointer] -> Maybe (Double, PointPointer)
-findMinimunButZero func sP ps = case pStartWithNoZero of
-  []     -> Nothing
-  (x:xs) -> Just $ foldl' (\pair i -> foldMaybe pair (func' i, i)) (func' x, x) xs
-  where
-    func' = func.(sP!.)
-    pStartWithNoZero = dropWhile dropZero ps
-    dropZero = (flip$(==).func') 0
-    foldMaybe new@(n, i) old@(nOld, iOld)
-      | n == 0 = old
-      | n > nOld = old
-      | n < nOld = new
-      | otherwise = error $ "Multiple points on circle or sphere! " ++ show new 
-
+    (a, b, c) = (face3DPoints.activeUnit) actFace

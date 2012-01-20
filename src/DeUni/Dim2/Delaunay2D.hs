@@ -9,10 +9,10 @@
 {-# LANGUAGE TypeFamilies #-}
 
 
-module DeUni.Dim3.Delaunay2D where
+module DeUni.Dim2.Delaunay2D where
 
 import Prelude hiding (null, lookup)
-import Data.List (map, foldl')
+import Data.List (map, foldl', null, (\\))
 import Control.Applicative ((<$>))
 import Data.Maybe
 import Data.Array.Diff hiding (elems)
@@ -20,108 +20,80 @@ import Data.Array.Diff hiding (elems)
 import DeUni.GeometricTools
 import DeUni.Types
 import DeUni.FirstSeed
-import DeUni.Dim3.Base2D
-import DeUni.Dim3.Hull2D
+import DeUni.Dim2.Base2D
 import Math.Vector
 
-
+import DeUni.Dim2.ReTri2D
 
 instance Buildable S2 Point2D where
   type Sub S2    = S1
   buildUnit      = makeSimplex
   build1stUnit   = makeFirstSimplex
-  getAllSubUnits = extractAllSimplexFaces
-  subUnitPos     = face3DPos
+  getAllSubUnits = extractAllFaceEdges
+  subUnitPos     = edge3DPos
 
-makeFirstSimplex::Plane Point3D -> SetPoint Point3D -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe (S2 Point3D)
+
+makeFirstSimplex::Plane Point2D -> SetPoint Point2D -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe (S2 Point2D)
 makeFirstSimplex alpha sP sideA sideB ps = do
-    face <- build1stUnit alpha sP sideA sideB ps
-    let actFace = ActiveUnit { activeUnit=face, assocP=(-1), assocND=face3DND face }
-    makeSimplex actFace sP ps
+  (pA, pB) <- getFirstEdge alpha sP sideA sideB
+  let edge = Edge2D pA pB
+  plane    <- calcPlane sP edge
+  let 
+    newND
+      | (null.pointsOnB1) pp = neg nd
+      | (null.pointsOnB2) pp = nd
+      | otherwise            = error $ "Delaunay3D: Wrong first Simplex!!!"
+    nd = plane2DNormal plane                               
+    psClean = ps \\ [pA, pB]
+    pp = pointSetPartition (whichSideOfPlane plane) sP psClean
+    actFace = ActiveUnit { activeUnit = edge, assocP = undefined, assocND = newND }
+  makeSimplex actFace sP ps
 
-face3DPos pairBox sP face = let (a, b, c) = (face3DPoints.activeUnit) face in facePos pairBox sP a b c
+  
+edge3DPos pairBox sP e = edgePos pairBox sP (edge2DL.activeUnit $ e) (edge2DR.activeUnit $ e)
 
-extractAllSimplexFaces::SetPoint Point3D -> S2 Point3D -> [ActiveSubUnit S2 Point3D]
-extractAllSimplexFaces sP sigma = map toSimplexFace fsAll
-    where
-    (a,b,c,d) = tetraPoints sigma
-    fsAll     = [((a,b,d), c), ((a,d,c), b), ((d,b,c), a), ((a,b,c), d)]
-    toSimplexFace fp@(f, x) = ActiveUnit { activeUnit=(Face3D f nd), assocP=x, assocND=nd }
-        where nd = outterND fp
-    outterND ((a,b,c), x) = if (sP!.a &- sP!.x) &. nd > 0 then neg nd else nd
-        where nd = normalize (sP!.b &- sP!.a) &^ (sP!.c &- sP!.a)
-
-makeSimplex::ActiveSubUnit S2 Point3D -> SetPoint Point3D -> [PointPointer] -> Maybe (S2 Point3D)
+extractAllFaceEdges::Maybe (ActiveSubUnit S2 Point2D) -> SetPoint Point2D -> S2 Point2D -> [ActiveSubUnit S2 Point2D]
+extractAllFaceEdges old sP sigma = map toSimplexFace fsAll
+  where
+    (a,b,c) = face2DPoints sigma
+    fsAll   = [((a,b), c), ((b,c), a), ((c,a), b)]
+    toSimplexFace fp@((a,b), x) = ActiveUnit { activeUnit=(Edge2D a b), assocP=x, assocND=outterND fp }
+    outterND ((a,b), x) = case plane2D (sP!.a) (sP!.b) of
+      Just p -> let nd = plane2DNormal p
+                in if (sP!.x &- sP!.a) &. nd > 0 then neg nd else nd
+      _      -> error "Delaunay2D: Bad face!!!"
+      
+makeSimplex::ActiveSubUnit S2 Point2D -> SetPoint Point2D -> [PointPointer] -> Maybe (S2 Point2D)
 makeSimplex actFace sP ps = do
-    minR  <- findMinRadius
-    sigma <- buildSimplexFace minR
-    return sigma
-    --if debug ("sigma: " ++ show sigma) $ testProperTetrahedron sP ps sigma then return sigma else (error "Fuck!!!!")
-    where
-        buildSimplexFace (_, d) = return Tetrahedron { circumSphereCenter = center
-                                                     , circumRadius = radius
-                                                     , tetraPoints  = (a,b,c,d) }
-            where (radius, center) = getCircumSphere (sP!.a, sP!.b, sP!.c) (sP!.d)
+  minR  <- findMinRadius
+  sigma <- buildSimplexFace minR
+  return sigma
+  where
+    buildSimplexFace (dist, i) = 
+      let (radius, center) = getCircumCircle (sP!a) (sP!b) (sP!i)
+      in return $ Face2D { circleCenter = center
+                         , circleRadius = radius
+                         , face2DPoints = (a,b,i) }
+    -- | Remove points from face to avoid get 0.0 in findMin
+    cleanP        = filter (\i -> (isSideOk i) && (i /= a) && (i /= b)) ps
+    findMinRadius = findMinimunButZero (getFaceDist sP actFace) sP cleanP
+    isSideOk i    = (sP!.i &- sP!.a) &. nd > 0
+    edge          = activeUnit actFace
+    a             = edge2DR edge
+    b             = edge2DL edge
+    nd            = assocND actFace
 
-        -- | Remove points from face to avoid get 0.0 in findMin
-        cleanP        = filter (\i -> (isSideOk i) && (i /= a) && (i /= b) && (i /= c)) ps
-        findMinRadius = findMinimunButZero (getRadius sP actFace) sP cleanP
-        isSideOk i    = 0 < (sP!.a &- sP!.i) &. nd
-        face@(a,b,c)  = (face3DPoints.activeUnit) actFace
-        nd            = (face3DND.activeUnit) actFace
-
-
-getRadius::SetPoint Point3D -> ActiveSubUnit S2 Point3D -> Point3D -> Double
-getRadius sP actFace i
-    | (getSide center)       && (getSide i)       = radius
-    | (not $ getSide center) && (not $ getSide i) = radius
-    | otherwise                                   = (-radius)
-    where
-        nd               = (face3DND.activeUnit) actFace
-        getSide x        = 0 > nd &. (sP!.a &- x)
-        face@(a,b,c)     = (face3DPoints.activeUnit) actFace
-        (radius, center) = getCircumSphere (sP!.a, sP!.b, sP!.c) i
-
-
-getCircumSphere::(Point3D, Point3D, Point3D) -> Point3D -> (Double, Point3D)
-getCircumSphere (a, b, c) d = (radius, center)
-    where
-        radius   = abs $ (norm q)/div
-        center   = a &+ (q &* (1/div))
-
-        ref      = a
-        deltaA   = b &- ref
-        deltaB   = c &- ref
-        deltaC   = d &- ref
-        crossB_C = deltaB &^ deltaC
-        crossC_A = deltaC &^ deltaA
-        crossA_B = deltaA &^ deltaB
-        x        = (normsqr deltaA) *& crossB_C
-        w        = (normsqr deltaB) *& crossC_A
-        t        = (normsqr deltaC) *& crossA_B
-        div      = 2 * (deltaA &. crossB_C)
-        q        = x &+ w &+ t
-
-
--- | Performance can be improve by removing the duplicate call to "func" in "dropZero" and the first "(func x, x)"
--- | OBS: Not the closest to zero. In that case
-findClosestButZero::(Point3D -> Double) -> SetPoint Point3D -> [PointPointer] -> Maybe (Double, PointPointer)
-findClosestButZero func = findMinimunButZero (abs.func)
-
-
--- | Performance can be improve by removing the duplicate call to "func" in "dropZero" and the first "(func x, x)"
--- | OBS: Not the closest to zero. In that case
-findMinimunButZero::(Point3D -> Double) -> SetPoint Point3D -> [PointPointer] -> Maybe (Double, PointPointer)
-findMinimunButZero func sP ps = case pStartWithNoZero of
-    []     -> Nothing
-    (x:xs) -> Just $ foldl' (\pair i -> foldMaybe pair (func' i, i)) (func' x, x) xs
-    where
-      func' = func.(sP!.)
-      pStartWithNoZero = dropWhile dropZero ps
-      dropZero = (flip$(==).func') 0
-      foldMaybe new@(n, i) old@(nOld, iOld)
-        | n == 0 = old
-        | n > nOld = old
-        | n < nOld = new
-        | otherwise = error $ "Multiple points on circle or sphere! " ++ show new 
+getFaceDist::SetPoint Point2D -> ActiveSubUnit S2 Point2D -> PointPointer -> Double
+getFaceDist sP actEdge i = if dir > 0 then dist else -dist
+  where
+    -- Signed values from getfaceDistCenter are wrong
+    dist   = abs d
+    (d, c) = getFaceDistCenter (sP!a) (sP!b) (sP!i)
+    a      = (edge2DR.activeUnit) actEdge
+    b      = (edge2DL.activeUnit) actEdge
+    nd     = assocND actEdge
+    n1     = (sP!.i) &- (sP!.a)
+    n2     = c       &- (sP!.a)
+    dir    = (n1 &. nd) * (n2 &. nd)
+    
 

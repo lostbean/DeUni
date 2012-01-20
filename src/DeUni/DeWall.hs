@@ -28,6 +28,7 @@
 module DeUni.DeWall
 ( runHull3D
 , runDelaunay3D
+, runDelaunay2D
 , reRun
 ) where
 
@@ -49,12 +50,14 @@ import DeUni.GeometricTools
 import DeUni.Dim3.Delaunay3D
 import DeUni.Dim3.Hull3D
 import DeUni.Dim3.Base3D
+import DeUni.Dim2.Delaunay2D
 import Math.Vector
 
 import Debug.Trace
 
-type SetSimplex = IntMap (S2 Point3D)
-type SetFace    = IntMap (S1 Point3D)
+type SetSimplex2D = IntMap (S2 Point2D)
+type SetSimplex3D = IntMap (S2 Point3D)
+type SetFace3D    = IntMap (S1 Point3D)
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Exposed functions |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -65,13 +68,18 @@ reRun st box sP ps faces = runState (mbc ps faces box []) init
   where
     init = st { aflAlpha=S.empty, aflBox1=S.empty, aflBox2=S.empty, setPoint=sP }
 
-runHull3D::Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetFace, StateVarsMBC S1 Point3D)
+runHull3D::Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetFace3D, StateVarsMBC S1 Point3D)
 runHull3D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S1 Point3D) box []) init
   where
     init = initState sP
 
-runDelaunay3D::Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetSimplex, StateVarsMBC S2 Point3D)
+runDelaunay3D::Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetSimplex3D, StateVarsMBC S2 Point3D)
 runDelaunay3D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S2 Point3D) box []) init
+  where
+    init = initState sP
+
+runDelaunay2D::Box Point2D -> SetPoint Point2D -> [PointPointer] -> (SetSimplex2D, StateVarsMBC S2 Point2D)
+runDelaunay2D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S2 Point2D) box []) init
   where
     init = initState sP
 

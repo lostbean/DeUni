@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module DeUniChecker where
+module Check3D where
 
 import Test.QuickCheck
 import Control.Applicative
@@ -33,8 +33,28 @@ import DeUni.GeometricTools
 import DeUni.Dim3.Base3D
 import DeUni.Dim3.Delaunay3D
 import DeUni.Dim3.Hull3D
+import DeUni.Dim3.ReTri3D
 
 import VTKGenSimplex
+
+runChecker =  do
+  let myArgs = Args {replay = Nothing, maxSuccess = 1000, maxDiscard = 5000, maxSize = 1000, chatty = True}
+  
+  print "Testing 1st face.."    
+  quickCheckWith myArgs prop_1stFace
+  
+  print "Testing Circumsphere.."    
+  quickCheckWith myArgs prop_CircumSphere
+  
+  print "Testing 1st tetrahedron.."    
+  quickCheckWith myArgs prop_1stSimplex
+
+  print "Testing Convex Hull.."    
+  quickCheckWith myArgs prop_ConvHull
+  
+  print "Testing Delaunay.."    
+  quickCheckWith myArgs prop_Delaunay
+
 
 instance Arbitrary (Box Point3D) where
   arbitrary = liftM2 getBox max min
@@ -55,7 +75,7 @@ instance (Ix a, Integral a, Arbitrary b) => Arbitrary (DiffArray a b) where
     (\x -> listArray (0,fromIntegral (length x - 1)) x) <$> arbitrary 
 
 
-error_precisson = (10e-8)
+error_precisson = (10e-2)
 
 msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
@@ -101,31 +121,12 @@ testSet test set
     err          = msgFail "empty output" False
 
 
-prop_Projection::Point3D -> Point3D -> Property
-prop_Projection a b = msgFail "bad projection" $ c &. b < error_precisson
+prop_CircumSphere::WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> Property
+prop_CircumSphere a b c d = msgFail "bad center" test
   where
-    c = normalofAtoB a b 
-    
-
-prop_partition::Box Point3D -> SetPoint Point3D -> Property
-prop_partition box sP = msgFail "bad points partition" (test1 || test2)
-  where
-    (plane, pairBox) = cutBox box []
-    p   = indices sP 
-    ppb = pointSetPartition (whichBoxIsIt pairBox) sP p
-    ppp = pointSetPartition (whichSideOfPlane plane) sP p
-    test1 = ((L.sort $ pointsOnB1 ppb) == (L.sort $ pointsOnB1 ppp))
-         && ((L.sort $ pointsOnB2 ppb) == (L.sort $ pointsOnB2 ppp))
-    test2 = ((L.sort $ pointsOnB1 ppb) == (L.sort $ pointsOnB2 ppp))
-         && ((L.sort $ pointsOnB2 ppb) == (L.sort $ pointsOnB1 ppp))
-
-
-prop_CircumSphere::(Vec3,Vec3,Vec3,Vec3) -> Property
-prop_CircumSphere (a,b,c,d) = msgFail "CircumCenter" test
-  where
-    test   = and $ map testcenter [a,b,c,d]
-    testcenter i = error_precisson > (abs $ (norm $ center &- i) - radius)
-    (radius, center) = getCircumSphere (a, b ,c) d
+    test         = and $ map testcenter [a,b,c,d]
+    testcenter i = error_precisson > (abs $ powerDist i (WPoint r center))
+    (r, center)  = getCircumSphere a b c d
 
 
 prop_1stSimplex::Box Point3D -> SetPoint Point3D -> Property
@@ -157,21 +158,17 @@ prop_1stFace box sP = pretest ==> test
 
 
 testProperTetrahedron::SetPoint Point3D -> S2 Point3D -> Property
-testProperTetrahedron sP sigma = msgFail ("bad tetrahedron center ", map testC [pA,pB,pC,pD]) isCenterOK
-                            .&&. msgFail ("non empty sphere", [pA,pB,pC,pD]) isSphereOK
+testProperTetrahedron sP sigma = msgFail ("non empty sphere", [pA,pB,pC]) isSphereOK
+                            -- .&&. prop_CircumSphere (sP!pA) (sP!pB) (sP!pC) (sP!pD)
   where
     (pA,pB,pC,pD)  = tetraPoints sigma
     center         = circumSphereCenter sigma
-    radius         = norm $ sP!.pA &- center
+    radius         = circumRadius sigma
+    wC             = WPoint radius center
     cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC) && (i /= pD)) (indices sP)
-    -- | Test if the it is the center of the simplex
-    isCenterOK     = and $ map testCenter [pA,pB,pC,pD]
-    testCenter i   = error_precisson > (abs $ (norm $ center &- sP!.i) - radius)
-    testC i        = (abs $ (norm $ center &- sP!.i) - radius)
-    -- | Test if the CircumSphere is empty
+    -- Test if the CircumSphere is empty
     isSphereOK     = and $ map testEmptySph cleanP
-    testEmptySph i = radius < norm (sP!.i &- center)
-
+    testEmptySph i = 0 < powerDist (sP!i) wC
 
 
 testHullFace::SetPoint Point3D -> S1 Point3D -> Property

@@ -12,7 +12,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 
 
-module DeUni.Dim3.Base2D where
+module DeUni.Dim2.Base2D where
 
 import Control.Applicative ((<$>))
 import Control.Monad.State.Lazy
@@ -26,7 +26,7 @@ import DeUni.FirstSeed
 import Math.Vector
 
 
-instance PointND Point3D where
+instance PointND Point2D where
   data Box Point2D     = Box2D
     { xMax2D::Double
     , xMin2D::Double
@@ -35,16 +35,17 @@ instance PointND Point3D where
     } deriving (Show, Eq)
   
   data Plane Point2D   = Plane2D
-    { plane2DNormal::Vec2D
+    { plane2DNormal::Vec2
     , plane2DDist  ::Double
     } deriving (Show, Eq)
  
-  data S0 Point2D      = undefined
+  data S0 Point2D      = P2D
+    { point2D :: PointPointer
+    } deriving (Show, Eq) 
   
   data S1 Point2D      = Edge2D
     { edge2DL  :: PointPointer
     , edge2DR  :: PointPointer
-    , edgeND   :: Point2D  
     } deriving (Show)  
                
   data S2 Point2D      = Face2D
@@ -57,7 +58,7 @@ instance PointND Point3D where
 
   compS1 a b = compEdge (edge2DL a) (edge2DR a) (edge2DL b) (edge2DR b)    
     
-  isInBox box (Vec2 x y z) = let 
+  isInBox box (Vec2 x y) = let 
     between min max x
       --will get points on the edge of the box and store if P1 those are on the commun face
       | min < max = (x >= min) && (max >= x)
@@ -74,7 +75,7 @@ instance PointND Point3D where
   calcPlane sp edge = let
     a = edge2DL edge
     b = edge2DR edge
-  in plane2d (sp!.a) (sp!.b)
+    in plane2D (sp!.a) (sp!.b)
 
   touchPlane refdir divPlane = plane2D
   
@@ -98,16 +99,16 @@ instance PointND Point3D where
           halfX = (xMax2D + xMin2D)/2
           halfY = (yMax2D + yMin2D)/2
 
-plane2D::Vec2 -> Vec2 -> Plane Point2D
+plane2D::Vec2 -> Vec2 -> Maybe (Plane Point2D)
 plane2D a b
   | nSize == 0 = Nothing
   | d >= 0     = Just $ makePlane normN d
-  | d < 0      = Just $ makePlane (inv normN) (-d)
+  | d < 0      = Just $ makePlane (neg normN) (-d)
   where
     (Vec2 x y) = b &- a
     n     = Vec2 (-y) x
     nSize = len n
     normN = normalize n
-    d     = normN &. (sp!.a)
-    inv n = (-1) *& n
+    d     = normN &. a
+
 
