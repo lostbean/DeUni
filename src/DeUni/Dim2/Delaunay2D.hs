@@ -17,11 +17,12 @@ import Control.Applicative ((<$>))
 import Data.Maybe
 import Data.Array.Diff hiding (elems)
 
+import Hammer.Math.Vector
+
 import DeUni.GeometricTools
 import DeUni.Types
 import DeUni.FirstSeed
 import DeUni.Dim2.Base2D
-import Math.Vector
 
 import DeUni.Dim2.ReTri2D
 

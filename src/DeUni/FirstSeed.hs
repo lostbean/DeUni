@@ -11,9 +11,10 @@ import Control.Applicative ((<$>))
 import Data.Maybe
 import Data.Array.Diff hiding (elems)
 
+import Hammer.Math.Vector
+
 import DeUni.GeometricTools
 import DeUni.Types
-import Math.Vector
 
 -- | Finds the first valid edge (a,b) across the division plane alpha laying
 -- on the convex hull. The is a base to construct either the fist valid regular 

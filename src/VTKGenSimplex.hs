@@ -23,7 +23,8 @@ import qualified Text.XML as X
 import Data.Text (Text, pack, append)
 import qualified Data.Text as T
 
-import Math.Vector
+import Hammer.Math.Vector
+
 import DeUni.Types
 import DeUni.Dim3.Base3D
 import DeUni.Dim2.Base2D

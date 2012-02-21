@@ -26,7 +26,7 @@ import qualified Data.IntMap as IM
 import qualified Data.Set as S
 import qualified Data.List as L
 
-import Math.Vector
+import Hammer.Math.Vector
 
 import DeUni.DeWall
 import DeUni.Types

@@ -12,9 +12,9 @@ import Data.List (foldl')
 import Data.Maybe
 import Data.Array.Diff hiding (elems)
 
+import Hammer.Math.Vector
 
 import DeUni.Types
-import Math.Vector
 
 -- | Projection A on B = B * (A°B)/(B°B)
 projAonB::(Vector a, DotProd a) => a -> a -> a

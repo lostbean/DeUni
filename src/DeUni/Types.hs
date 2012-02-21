@@ -25,7 +25,7 @@ import Data.Maybe (Maybe)
 import Data.Array.Diff (DiffArray, Ix, (!))
 import Control.Monad.State.Lazy (State)
 
-import Math.Vector
+import Hammer.Math.Vector
 
 
 import Debug.Trace

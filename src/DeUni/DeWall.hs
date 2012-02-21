@@ -45,15 +45,14 @@ import Control.Applicative ((<$>))
 import Control.Monad.State.Lazy
 import Data.Array.Diff
 
+import Hammer.Math.Vector
+
 import DeUni.Types
 import DeUni.GeometricTools
 import DeUni.Dim3.Delaunay3D
 import DeUni.Dim3.Hull3D
 import DeUni.Dim3.Base3D
 import DeUni.Dim2.Delaunay2D
-import Math.Vector
-
-import Debug.Trace
 
 type SetSimplex2D = IntMap (S2 Point2D)
 type SetSimplex3D = IntMap (S2 Point3D)

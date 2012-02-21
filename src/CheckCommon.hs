@@ -26,8 +26,9 @@ import qualified Data.IntMap as IM
 import qualified Data.Set as S
 import qualified Data.List as L
 
+import Hammer.Math.Vector
+
 import DeUni.DeWall
-import Math.Vector
 import DeUni.Types
 import DeUni.GeometricTools
 import DeUni.Dim3.Base3D

@@ -20,10 +20,11 @@ import Data.Array.Diff hiding (elems)
 import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
 import qualified Data.List as L
 
+import Hammer.Math.Vector
+
 import DeUni.GeometricTools
 import DeUni.Types
 import DeUni.FirstSeed
-import Math.Vector
 
 
 instance PointND Point3D where

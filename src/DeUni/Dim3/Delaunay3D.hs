@@ -17,14 +17,14 @@ import Control.Applicative ((<$>))
 import Data.Maybe
 import Data.Array.Diff hiding (elems)
 
+import Hammer.Math.Vector
+
 import DeUni.GeometricTools
 import DeUni.Types
 import DeUni.FirstSeed
 import DeUni.Dim3.Base3D
 import DeUni.Dim3.Hull3D
 import DeUni.Dim3.ReTri3D
-import Math.Vector
-
 
 
 instance Buildable S2 Point3D where

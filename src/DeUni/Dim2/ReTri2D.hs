@@ -1,6 +1,7 @@
 module DeUni.Dim2.ReTri2D where
 
-import Math.Vector
+import Hammer.Math.Vector
+
 import DeUni.Types
 import DeUni.Dim2.Base2D
 
