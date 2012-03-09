@@ -16,7 +16,6 @@ module DeUni.Dim2.Base2D where
 
 import Control.Applicative ((<$>))
 import Control.Monad.State.Lazy
-import Data.Array.Diff hiding (elems)
 import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
 import qualified Data.List as L
 

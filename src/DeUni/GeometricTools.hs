@@ -10,7 +10,6 @@ import Control.Applicative ((<$>))
 import Control.Monad.State.Lazy
 import Data.List (foldl')
 import Data.Maybe
-import Data.Array.Diff hiding (elems)
 
 import Hammer.Math.Vector
 

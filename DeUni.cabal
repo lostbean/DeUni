@@ -24,8 +24,8 @@ library
                         , random     -any
                         , containers -any
                         , mtl        -any
-                        , diffarray  -any
-                        , hammer     >= 0.1
+                        , vector     -any
+                        , hammer     >= 0.1.1
 
     Exposed-modules:    DeUni.DeWall
 

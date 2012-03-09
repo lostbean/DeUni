@@ -9,7 +9,6 @@ import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
 import qualified Data.List as L
 import Control.Applicative ((<$>))
 import Data.Maybe
-import Data.Array.Diff hiding (elems)
 
 import Hammer.Math.Vector
 

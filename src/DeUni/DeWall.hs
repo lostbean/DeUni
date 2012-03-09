@@ -43,7 +43,6 @@ import Data.IntMap (IntMap)
 import Data.Maybe
 import Control.Applicative ((<$>))
 import Control.Monad.State.Lazy
-import Data.Array.Diff
 
 import Hammer.Math.Vector
 

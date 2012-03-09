@@ -15,7 +15,7 @@ import Prelude hiding (null, lookup)
 import Data.List (map, foldl', null, (\\))
 import Control.Applicative ((<$>))
 import Data.Maybe
-import Data.Array.Diff hiding (elems)
+import Data.Vector ((!))
 
 import Hammer.Math.Vector
 
