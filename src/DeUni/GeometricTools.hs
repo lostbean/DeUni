@@ -35,8 +35,8 @@ whichSideOfPlane plane p = case compare projection dist of
     projection = p &. (normalize.planeNormal) plane
     dist       = planeDist plane
 
- -- | Project a vector\point on the plane that goes throw the oringe.
- --   It discard the distance on Plane data. It assumes that the plane pass throw the oringe
+-- | Project a vector-point on the plane that goes throw the oringe.
+--   It discard the distance on Plane data. It assumes that the plane pass throw the oringe
 getProjOnPlane::(PointND a) => Plane a -> a -> a
 getProjOnPlane plane p = projOnPlane
   where
