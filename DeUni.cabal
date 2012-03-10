@@ -20,7 +20,7 @@ Flag test
 
 library
     hs-source-dirs:     src
-    Build-Depends:        base       <=5
+    Build-Depends:        base       <= 5
                         , random     -any
                         , containers -any
                         , mtl        -any
@@ -28,7 +28,9 @@ library
                         , hammer     >= 0.1.1
 
     Exposed-modules:    DeUni.DeWall
-
+                        DeUni.Types
+                        DeUni.Dim2.Base2D
+                        DeUni.Dim3.Base3D
 Executable tester
     if flag(test)
       Buildable:        True
@@ -37,8 +39,6 @@ Executable tester
       Buildable:        True
     hs-source-dirs:     src
     main-is:            Main.hs
-    build-depends:        base            <=5
-                        , QuickCheck      >=2
-                        , text            -any
-                        , xml-types       -any
-                        , xml-enumerator  -any
+    build-depends:        base            <= 5
+                        , QuickCheck      >= 2
+                        , hammer          >= 0.1.1

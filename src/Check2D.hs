@@ -21,12 +21,13 @@ module Check2D where
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
-import Data.Array.Diff
 import qualified Data.IntMap as IM
 import qualified Data.Set as S
 import qualified Data.List as L
+import qualified Data.Vector as Vec
+import Data.Vector (Vector, (!))
 
-import Hammer.Math.Vector
+import Hammer.Math.Vector hiding (Vector)
 
 import DeUni.DeWall
 import DeUni.Types
@@ -36,7 +37,7 @@ import DeUni.Dim2.Base2D
 import DeUni.Dim2.Delaunay2D
 import DeUni.Dim2.ReTri2D
 
-import VTKGenSimplex
+import VTKRender
 
 
 runChecker =  do
@@ -69,10 +70,8 @@ instance (Arbitrary a) => Arbitrary (WPoint a) where
   arbitrary = liftM2 WPoint s arbitrary
     where s = choose (1, 8)
   
-instance (Ix a, Integral a, Arbitrary b) => Arbitrary (DiffArray a b) where
-  arbitrary   =
-    (\x -> listArray (0,fromIntegral (length x - 1)) x) <$> arbitrary 
-
+instance (Arbitrary a) => Arbitrary (Vector a) where
+  arbitrary   = liftM2 Vec.generate arbitrary arbitrary  
 
 error_precisson = (10e-3)
 
@@ -80,7 +79,7 @@ msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
 
 prop_Delaunay::Box Point2D -> SetPoint Point2D -> Property
-prop_Delaunay box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Delaunay2D_err.vtu" sp wall) fulltest
+prop_Delaunay box sp = (length ps) > 4 ==> fulltest
   where
     fulltest   = testWall .&&. testHull .&&. testSize
     (wall, st) = runDelaunay2D box sp ixps
@@ -88,8 +87,8 @@ prop_Delaunay box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Delaunay2D_er
     testh x    = testHullEdge sp x
     testWall   = testIM testw wall
     testHull   = testSet testh (S.map activeUnit $ externalFaces st)
-    ixps       = indices sp
-    ps         = elems sp
+    ixps       = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
+    ps         = Vec.toList sp
     testSize   = msgFail "gen obj /= num add" $ IM.size wall == count st
     
 
@@ -120,7 +119,7 @@ prop_1stSimplex::Box Point2D -> SetPoint Point2D -> Property
 prop_1stSimplex box sP = pretest ==> test
   where
     (plane, pairBox) = cutBox box []
-    p                = indices sP 
+    p   = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pp               = pointSetPartition (whichBoxIsIt pairBox) sP p
     p1               = pointsOnB1 pp
     p2               = (pointsOnB2 pp) ++ (pointsOnPlane pp)
@@ -134,7 +133,7 @@ prop_1stEdge::Box Point2D -> SetPoint Point2D -> Property
 prop_1stEdge box sP = pretest ==> test
   where
     (plane, pairBox) = cutBox box []
-    p                = indices sP
+    p   = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pp               = pointSetPartition (whichBoxIsIt pairBox) sP p
     p1               = pointsOnB1 pp
     p2               = (pointsOnB2 pp) ++ (pointsOnPlane pp)
@@ -145,14 +144,15 @@ prop_1stEdge box sP = pretest ==> test
 
 
 testProperFace::SetPoint Point2D -> S2 Point2D -> Property
-testProperFace sP sigma = msgFail ("non empty circle", [pA,pB,pC], map (powerDist wC.(sP!)) (indices sP)) isSphereOK
+testProperFace sP sigma = msgFail ("non empty circle", [pA,pB,pC], map (powerDist wC.(sP!)) ps) isSphereOK
                      -- .&&. prop_CircumCircle (sP!a) (sP!b) (sP!c)
   where
+    ps             = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     (pA,pB,pC)     = face2DPoints sigma
     center         = circleCenter sigma
     radius         = circleRadius sigma
     wC             = WPoint radius center
-    cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) (indices sP)
+    cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) ps
     -- Test if the CircumSphere is empty
     isSphereOK     = and $ map testEmptySph cleanP
     testEmptySph i = 0 < (powerDist (sP!i) wC)
@@ -161,11 +161,12 @@ testProperFace sP sigma = msgFail ("non empty circle", [pA,pB,pC], map (powerDis
 testHullEdge::SetPoint Point2D -> S1 Point2D -> Property
 testHullEdge sP edge = test
   where
+    ps     = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pA     = edge2DR edge
     pB     = edge2DL edge
     pp     = (\x -> pointSetPartition (whichSideOfPlane x) sP cleanP) <$> plane
     plane  = calcPlane sP edge
-    cleanP = filter (\i -> (i /= pA) && (i /= pB)) $ indices sP
+    cleanP = filter (\i -> (i /= pA) && (i /= pB)) ps
     test   = case pp of
       Nothing -> msgFail "no plane from face" False
       Just x  -> case (pointsOnB1 x, pointsOnB2 x, pointsOnPlane x) of
