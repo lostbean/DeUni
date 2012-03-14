@@ -29,8 +29,15 @@ library
 
     Exposed-modules:    DeUni.DeWall
                         DeUni.Types
+                        DeUni.GeometricTools
+                        DeUni.FirstSeed
                         DeUni.Dim2.Base2D
                         DeUni.Dim3.Base3D
+                        DeUni.Dim2.Delaunay2D
+                        DeUni.Dim3.Delaunay3D
+                        DeUni.Dim3.Hull3D
+                        DeUni.Dim2.ReTri2D
+                        DeUni.Dim3.ReTri3D
 Executable tester
     if flag(test)
       Buildable:        True
