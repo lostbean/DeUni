@@ -71,7 +71,7 @@ instance (Arbitrary a) => Arbitrary (WPoint a) where
     where s = choose (1, 8)
   
 instance (Arbitrary a) => Arbitrary (Vector a) where
-  arbitrary   = liftM2 Vec.generate arbitrary arbitrary  
+  arbitrary = Vec.fromList <$> arbitrary
 
 error_precisson = (10e-3)
 

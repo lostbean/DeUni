@@ -64,8 +64,7 @@ instance (Arbitrary a) => Arbitrary (WPoint a) where
   arbitrary = WPoint 0 <$> arbitrary
   
 instance (Arbitrary a) => Arbitrary (Vector a) where
-  arbitrary   = liftM2 Vec.generate arbitrary arbitrary
-
+  arbitrary =Vec.fromList <$> arbitrary
 
 instance Arbitrary Vec2 where
   arbitrary = liftM2 Vec2 p p
