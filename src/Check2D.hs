@@ -21,6 +21,7 @@ module Check2D where
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
+import Data.Monoid ((<>))
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 import Data.Map (Map)
@@ -41,7 +42,7 @@ import DeUni.Dim2.Base2D
 import DeUni.Dim2.Delaunay2D
 import DeUni.Dim2.ReTri2D
 
-import VTKRender
+import RenderSVG
 
 
 runChecker =  do
@@ -57,6 +58,7 @@ runChecker =  do
   
   print "Testing Delaunay.."    
   quickCheckWith myArgs prop_Delaunay
+  
 
 
 instance Arbitrary (Box Point2D) where
@@ -83,7 +85,7 @@ msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
 
 prop_Delaunay::Box Point2D -> SetPoint Point2D -> Property
-prop_Delaunay box sp = (length ps) > 4 ==> fulltest
+prop_Delaunay box sp = (length ps) > 4 ==> whenFail (log) fulltest
   where
     fulltest   = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay2D box sp ixps
@@ -96,7 +98,36 @@ prop_Delaunay box sp = (length ps) > 4 ==> fulltest
     ixps       = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
     ps         = Vec.toList sp
     testSize   = msgFail "gen obj /= num add" $ IM.size wall == count st
-    
+    log = let
+      opens = map (testEdge.fst) $ Map.toList $ Map.filter (==Open) $ cloS2
+      
+      op  = closeUpOnBox box $
+            renderBox2D box
+         <> renderSetS2Triangle sp wall
+         <> renderSetPoint2D sp
+         <> renderSetPair sp opens
+      
+      dia = closeUpOnBox box $
+            renderBox2D box
+         <> renderSetS2Circle wall
+         <> renderSetPoint2D sp
+      
+      dia2 = closeUpOnBox box $
+             renderBox2D box
+          <> renderSetS2Triangle sp wall
+          <> renderSetPoint2D sp
+          <> renderSetS1 sp hull
+          
+      dia3 = closeUpOnBox box $
+             renderBox2D box
+          <> renderSetS2Triangle sp wall
+          <> renderSetS2Circle wall
+          
+      in do
+        renderSVG "test1.svg" (sizeSpec (Just 500, Just 500)) dia
+        renderSVG "test2.svg" (sizeSpec (Just 500, Just 500)) dia2
+        renderSVG "test3.svg" (sizeSpec (Just 500, Just 500)) dia3
+        renderSVG "opens.svg" (sizeSpec (Just 500, Just 500)) op
 
 testIM test map
   | IM.null map = err
@@ -162,7 +193,7 @@ testProperFace sP sigma = msgFail ("non empty circle", [pA,pB,pC], map (powerDis
     -- Test if the CircumSphere is empty
     isSphereOK     = and $ map testEmptySph cleanP
     testEmptySph i = 0 < (powerDist (sP!i) wC)
-
+       
 
 testHullEdge::SetPoint Point2D -> S1 Point2D -> Property
 testHullEdge sP edge = test
