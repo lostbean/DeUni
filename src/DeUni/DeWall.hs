@@ -127,6 +127,10 @@ mbc p afl box subbox = do
           (True,  _,     _,     True,  False) -> mbc p2 afl2 box2 []
           (True,  False, True,  False, False) -> mbc p  afl1 box  (subbox ++ [B1])
           (True,  True,  False, False, False) -> mbc p  afl2 box  (subbox ++ [B2])
+          (True,  False, False, False, False) -> do
+            us1 <- mbc p afl1 box (subbox ++ [B1])
+            us2 <- mbc p afl2 box (subbox ++ [B2])
+            return (us1 `IM.union` us2 `IM.union` units)
           (True,  _,     _,     _ ,    _    ) -> return IM.empty
           (False, True,  True,  _ ,    _    ) -> return units
           (False, True,  False, _ ,    _    ) -> (IM.union units) <$> mbc p2 afl2 box2 []
