@@ -21,7 +21,10 @@ module Check3D where
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
+import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
+import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as S
 import qualified Data.List as L
 import qualified Data.Vector as Vec
@@ -96,12 +99,13 @@ prop_ConvHull box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Hull3D_err.vt
 prop_Delaunay::Box Point3D -> SetPoint Point3D -> Property
 prop_Delaunay box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Delaunay3D_err.vtu" sp wall) fulltest
   where
-    fulltest   = testWall .&&. testHull .&&. testSize
+    fulltest   = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay3D box sp ixps
     testw x    = testProperTetrahedron sp x
     testh x    = testHullFace sp x
     testWall   = testIM testw wall
     testHull   = testSet testh (S.map activeUnit $ externalFaces st)
+    testClo    = testClosure wall (S.map activeUnit $ externalFaces st)
     ixps       = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
     ps         = Vec.toList sp
     testSize   = msgFail "gen obj /= num add" $ IM.size wall == count st
@@ -189,3 +193,31 @@ testHullFace sP face = test
         ([],_,_)   -> label "face on B1" True
         (_,[],_)   -> label "face on B2" True
         _          -> msgFail ("non-Hull face", x, face3DPoints face) False
+        
+        
+data TestClosure = Open | Closed | Error deriving (Show, Eq)
+newtype ClosureID = CloID (Int, Int, Int) deriving (Show, Eq)
+instance Ord ClosureID where
+  compare (CloID a) (CloID b) = compFace a b
+  
+testClosure::IntMap (S2 Point3D) -> Set (S1 Point3D) -> Property
+testClosure ss2 ss1 = testError
+  where
+    testError = Map.foldl (\acc x -> acc .&&. ftest x) (property True) cloS2
+    ftest x = (msgFail ("Missing face!!!: " ++ (show . Map.filter (==Open) $ cloS2)) $ x /= Open)
+         .&&. (msgFail ("More than 2 faces per edge!!!") $ x /= Error)
+    
+    cloS1 = S.foldl funcS1 Map.empty ss1
+    funcS1 acc s1 = let
+      face        = CloID $ face3DPoints s1
+      func _ Open = Closed
+      func _ _    = Error
+      in Map.insertWith func face Open acc
+      
+    cloS2 = IM.foldl funcS2 cloS1 ss2
+    funcS2 acc s2  = let
+      (a, b, c, d) = tetraPoints s2
+      func _ Open  = Closed
+      func _ _     = Error
+      add p1 p2 p3 = Map.insertWith func (CloID (p1,p2,p3)) Open
+      in add a b c $ add a b d $ add b c d $ add c a d acc

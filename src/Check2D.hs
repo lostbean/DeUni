@@ -21,7 +21,11 @@ module Check2D where
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
+import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as S
 import qualified Data.List as L
 import qualified Data.Vector as Vec
@@ -81,12 +85,14 @@ msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 prop_Delaunay::Box Point2D -> SetPoint Point2D -> Property
 prop_Delaunay box sp = (length ps) > 4 ==> fulltest
   where
-    fulltest   = testWall .&&. testHull .&&. testSize
+    fulltest   = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay2D box sp ixps
+    hull       = S.map activeUnit $ externalFaces st
     testw x    = testProperFace sp x
     testh x    = testHullEdge sp x
     testWall   = testIM testw wall
-    testHull   = testSet testh (S.map activeUnit $ externalFaces st)
+    testHull   = testSet testh hull
+    (testClo, cloS2) = testClosure wall hull
     ixps       = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
     ps         = Vec.toList sp
     testSize   = msgFail "gen obj /= num add" $ IM.size wall == count st
@@ -175,3 +181,32 @@ testHullEdge sP edge = test
         ([],_,_)   -> label "face on B1" True
         (_,[],_)   -> label "face on B2" True
         _          -> msgFail ("non-Hull face", x, edge) False
+        
+        
+data TestClosure = Open | Closed | Error deriving (Show, Eq)
+newtype ClosureID = CloID {testEdge::(Int, Int)} deriving (Show, Eq)
+instance Ord ClosureID where
+  compare (CloID (a1,a2)) (CloID (b1,b2)) = compEdge a1 a2 b1 b2
+  
+testClosure::IntMap (S2 Point2D) -> Set (S1 Point2D) -> (Property, Map ClosureID TestClosure)
+testClosure ss2 ss1 = (testError, cloS2)
+  where
+    testError = Map.foldl (\acc x -> acc .&&. ftest x) (property True) cloS2
+    ftest x = (msgFail ("Missing face!!! :" ++ (show . Map.filter (==Open) $ cloS2)) $ x /= Open)
+         .&&. (msgFail ("More than 2 faces per edge!!!") $ x /= Error)
+    
+    cloS1 = S.foldl funcS1 Map.empty ss1
+    funcS1 acc s1 = let
+      a           = edge2DR s1
+      b           = edge2DL s1
+      func _ Open = Closed
+      func _ _    = Error
+      in Map.insertWith func (CloID (a,b)) Open acc
+      
+    cloS2 = IM.foldl funcS2 cloS1 ss2
+    funcS2 acc s2 = let
+      (a, b, c)   = face2DPoints s2
+      func _ Open = Closed
+      func _ _    = Error
+      add p1 p2 = Map.insertWith func (CloID (p1, p2)) Open
+      in add a b $ add b c $ add c a acc
