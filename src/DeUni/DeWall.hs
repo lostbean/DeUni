@@ -145,7 +145,7 @@ get1stUnits pairBox plane p1 p2 p = do
   sP <- liftM setPoint get
   case build1stUnit plane sP p1 p2 p of
     Just unit -> do
-      mapM_ (splitAF pairBox) (getAllSubUnits Nothing sP unit)
+      mapM_ (splitAF pairBox) (getAllSubUnits sP unit)
       units <- getUnitsOnPlane pairBox plane p
       cnt   <- liftM count get
       modify (\x -> x { count = cnt + 1 })
@@ -153,35 +153,29 @@ get1stUnits pairBox plane p1 p2 p = do
     _         -> return IM.empty
 
 
-
 -- Simplex Wall Construction
 getUnitsOnPlane::(Buildable slx dim, Ord (Sub slx dim)) => BoxPair dim -> Plane dim -> [PointPointer] -> StateMBC slx dim (IntMap (slx dim))
 getUnitsOnPlane pairBox plane p = do
   st <- get
-  let
-    sP                     = setPoint st
-    getOneActSubUnit       = return.S.findMax.aflAlpha
-    getOthersSubUnits x    = return.(L.delete x).(getAllSubUnits (Just x) sP)
-    removeSubUnit su       = modify (\x -> x { aflAlpha = S.delete su (aflAlpha x) })
-    recursion t actSubUnit = case t of
-      Just sig -> do
-        getOthersSubUnits actSubUnit sig >>= mapM_ (splitAF pairBox)
-        removeSubUnit actSubUnit
-        s   <- getUnitsOnPlane pairBox plane p
-        cnt <- liftM count get
-        modify (\x -> x { count = cnt + 1 })
-        return $ IM.insert cnt sig s
-      _ -> do
-        modify (\x -> x { externalFaces = S.insert actSubUnit (externalFaces x) })
-        removeSubUnit actSubUnit
-        getUnitsOnPlane pairBox plane p
+  sP <- liftM setPoint get
   if S.null (aflAlpha st)
     then do
       return IM.empty
-    else do
-      actSubUnit <- getOneActSubUnit st
-      recursion (buildUnit actSubUnit sP p) actSubUnit
-
+    else let
+      actSubUnit       = S.findMax . aflAlpha $ st
+      newUnit          = buildUnit actSubUnit sP p
+      removeSubUnit su = modify (\x -> x { aflAlpha = S.delete su (aflAlpha x) })
+      in case newUnit of
+        Just sig -> do
+          mapM_ (splitAF pairBox) (getAllSubUnits sP sig)
+          sigs <- getUnitsOnPlane pairBox plane p
+          cnt  <- liftM count get
+          modify (\x -> x { count = cnt + 1 })
+          return $ IM.insert cnt sig sigs
+        _ -> do
+          modify (\x -> x { externalFaces = S.insert actSubUnit (externalFaces x) })
+          removeSubUnit actSubUnit
+          getUnitsOnPlane pairBox plane p
 
 
 splitAF::(Buildable slx dim, Ord (Sub slx dim)) => BoxPair dim -> ActiveSubUnit slx dim -> StateMBC slx dim ()

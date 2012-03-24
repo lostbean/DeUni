@@ -37,8 +37,8 @@ makeFirstFace alpha sP sideA sideB ps = do
   
 edge3DPos pairBox sP e = edgePos pairBox sP (edge3DL.activeUnit $ e) (edge3DR.activeUnit $ e)
 
-extractAllFaceEdges::Maybe (ActiveSubUnit S1 Point3D) -> SetPoint Point3D -> S1 Point3D -> [ActiveSubUnit S1 Point3D]
-extractAllFaceEdges old sP sigma = 
+extractAllFaceEdges::SetPoint Point3D -> S1 Point3D -> [ActiveSubUnit S1 Point3D]
+extractAllFaceEdges sP sigma = 
   let (a,b,c) = face3DPoints sigma
   in  [ ActiveUnit (Edge3D a b) c undefined
       , ActiveUnit (Edge3D b c) a undefined 

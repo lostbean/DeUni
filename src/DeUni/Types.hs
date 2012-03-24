@@ -158,7 +158,7 @@ class (PointND dim) => Buildable simplex dim where
   type Sub simplex  :: * -> *
   buildUnit         :: ActiveSubUnit simplex dim -> SetPoint dim -> [PointPointer] -> Maybe (simplex dim)
   build1stUnit      :: Plane dim -> SetPoint dim -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe (simplex dim)
-  getAllSubUnits    :: Maybe (ActiveSubUnit simplex dim) -> SetPoint dim -> (simplex dim) -> [ActiveSubUnit simplex dim]
+  getAllSubUnits    :: SetPoint dim -> (simplex dim) -> [ActiveSubUnit simplex dim]
   subUnitPos        :: BoxPair dim -> SetPoint dim -> ActiveSubUnit simplex dim -> Position
 
 

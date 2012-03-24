@@ -52,8 +52,8 @@ makeFirstSimplex alpha sP sideA sideB ps = do
 
 face3DPos pairBox sP face = let (a, b, c) = (face3DPoints.activeUnit) face in facePos pairBox sP a b c
 
-extractAllSimplexFaces::Maybe (ActiveSubUnit S2 Point3D) -> SetPoint Point3D -> S2 Point3D -> [ActiveSubUnit S2 Point3D]
-extractAllSimplexFaces _ sP sigma = map toSimplexFace fsAll
+extractAllSimplexFaces::SetPoint Point3D -> S2 Point3D -> [ActiveSubUnit S2 Point3D]
+extractAllSimplexFaces sP sigma = map toSimplexFace fsAll
   where
     (a,b,c,d) = tetraPoints sigma
     fsAll     = [((a,b,d), c), ((a,d,c), b), ((d,b,c), a), ((a,b,c), d)]
