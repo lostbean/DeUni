@@ -22,10 +22,11 @@ import Prelude
 import Data.Set (Set)
 import Data.IntMap (IntMap)
 import Data.Maybe (Maybe)
-import Data.Array.Diff (DiffArray, Ix, (!))
+import Data.Vector (Vector,(!))
 import Control.Monad.State.Lazy (State)
 
-import Math.Vector
+import qualified Hammer.Math.Vector as HVec
+import Hammer.Math.Vector hiding (Vector)
 
 
 import Debug.Trace
@@ -36,7 +37,7 @@ debug s x = trace (s ++ show x) x
 -- | Define a point in 2D and 3D
 type Point3D         = Vec3
 type Point2D         = Vec2
-newtype PointPointer = PointPointer Int deriving (Eq, Ord, Num, Ix, Real, Enum, Integral, Show)
+type PointPointer    = Int
 
 data WPoint p = WPoint
               { weigth :: Double
@@ -134,7 +135,7 @@ data BoxPair a = BoxPair
     , halfBox2::Box a
     }
 
-type SetPoint a = DiffArray PointPointer (WPoint a)
+type SetPoint a = Vector (WPoint a)
 
 (!.)::SetPoint a -> PointPointer -> a
 sP !. ix = point $ sP ! ix 
@@ -157,11 +158,11 @@ class (PointND dim) => Buildable simplex dim where
   type Sub simplex  :: * -> *
   buildUnit         :: ActiveSubUnit simplex dim -> SetPoint dim -> [PointPointer] -> Maybe (simplex dim)
   build1stUnit      :: Plane dim -> SetPoint dim -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe (simplex dim)
-  getAllSubUnits    :: Maybe (ActiveSubUnit simplex dim) -> SetPoint dim -> (simplex dim) -> [ActiveSubUnit simplex dim]
+  getAllSubUnits    :: SetPoint dim -> (simplex dim) -> [ActiveSubUnit simplex dim]
   subUnitPos        :: BoxPair dim -> SetPoint dim -> ActiveSubUnit simplex dim -> Position
 
 
-class (Vector p, DotProd p, Show p) => PointND p where
+class (HVec.Vector p, DotProd p, Show p) => PointND p where
   data Box p   :: *
   data Plane p :: *
   data S0 p    :: *

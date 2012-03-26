@@ -21,12 +21,18 @@ module Check2D where
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
-import Data.Array.Diff
+import Data.Monoid ((<>))
+import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as S
 import qualified Data.List as L
+import qualified Data.Vector as Vec
+import Data.Vector (Vector, (!))
 
-import Math.Vector
+import Hammer.Math.Vector hiding (Vector)
 
 import DeUni.DeWall
 import DeUni.Types
@@ -36,7 +42,7 @@ import DeUni.Dim2.Base2D
 import DeUni.Dim2.Delaunay2D
 import DeUni.Dim2.ReTri2D
 
-import VTKGenSimplex
+import RenderSVG
 
 
 runChecker =  do
@@ -52,6 +58,7 @@ runChecker =  do
   
   print "Testing Delaunay.."    
   quickCheckWith myArgs prop_Delaunay
+  
 
 
 instance Arbitrary (Box Point2D) where
@@ -69,10 +76,8 @@ instance (Arbitrary a) => Arbitrary (WPoint a) where
   arbitrary = liftM2 WPoint s arbitrary
     where s = choose (1, 8)
   
-instance (Ix a, Integral a, Arbitrary b) => Arbitrary (DiffArray a b) where
-  arbitrary   =
-    (\x -> listArray (0,fromIntegral (length x - 1)) x) <$> arbitrary 
-
+instance (Arbitrary a) => Arbitrary (Vector a) where
+  arbitrary = Vec.fromList <$> arbitrary
 
 error_precisson = (10e-3)
 
@@ -80,18 +85,49 @@ msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
 
 prop_Delaunay::Box Point2D -> SetPoint Point2D -> Property
-prop_Delaunay box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Delaunay2D_err.vtu" sp wall) fulltest
+prop_Delaunay box sp = (length ps) > 4 ==> whenFail (log) fulltest
   where
-    fulltest   = testWall .&&. testHull .&&. testSize
+    fulltest   = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay2D box sp ixps
+    hull       = S.map activeUnit $ externalFaces st
     testw x    = testProperFace sp x
     testh x    = testHullEdge sp x
     testWall   = testIM testw wall
-    testHull   = testSet testh (S.map activeUnit $ externalFaces st)
-    ixps       = indices sp
-    ps         = elems sp
+    testHull   = testSet testh hull
+    (testClo, cloS2) = testClosure wall hull
+    ixps       = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
+    ps         = Vec.toList sp
     testSize   = msgFail "gen obj /= num add" $ IM.size wall == count st
-    
+    log = let
+      opens = map (testEdge.fst) $ Map.toList $ Map.filter (==Open) $ cloS2
+      
+      op  = closeUpOnBox box $
+            renderBox2D box
+         <> renderSetS2Triangle sp wall
+         <> renderSetPoint2D sp
+         <> renderSetPair sp opens
+      
+      dia = closeUpOnBox box $
+            renderBox2D box
+         <> renderSetS2Circle wall
+         <> renderSetPoint2D sp
+      
+      dia2 = closeUpOnBox box $
+             renderBox2D box
+          <> renderSetS2Triangle sp wall
+          <> renderSetPoint2D sp
+          <> renderSetS1 sp hull
+          
+      dia3 = closeUpOnBox box $
+             renderBox2D box
+          <> renderSetS2Triangle sp wall
+          <> renderSetS2Circle wall
+          
+      in do
+        renderSVG "test1.svg" (sizeSpec (Just 500, Just 500)) dia
+        renderSVG "test2.svg" (sizeSpec (Just 500, Just 500)) dia2
+        renderSVG "test3.svg" (sizeSpec (Just 500, Just 500)) dia3
+        renderSVG "opens.svg" (sizeSpec (Just 500, Just 500)) op
 
 testIM test map
   | IM.null map = err
@@ -120,7 +156,7 @@ prop_1stSimplex::Box Point2D -> SetPoint Point2D -> Property
 prop_1stSimplex box sP = pretest ==> test
   where
     (plane, pairBox) = cutBox box []
-    p                = indices sP 
+    p   = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pp               = pointSetPartition (whichBoxIsIt pairBox) sP p
     p1               = pointsOnB1 pp
     p2               = (pointsOnB2 pp) ++ (pointsOnPlane pp)
@@ -134,7 +170,7 @@ prop_1stEdge::Box Point2D -> SetPoint Point2D -> Property
 prop_1stEdge box sP = pretest ==> test
   where
     (plane, pairBox) = cutBox box []
-    p                = indices sP
+    p   = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pp               = pointSetPartition (whichBoxIsIt pairBox) sP p
     p1               = pointsOnB1 pp
     p2               = (pointsOnB2 pp) ++ (pointsOnPlane pp)
@@ -145,27 +181,29 @@ prop_1stEdge box sP = pretest ==> test
 
 
 testProperFace::SetPoint Point2D -> S2 Point2D -> Property
-testProperFace sP sigma = msgFail ("non empty circle", [pA,pB,pC], map (powerDist wC.(sP!)) (indices sP)) isSphereOK
+testProperFace sP sigma = msgFail ("non empty circle", [pA,pB,pC], map (powerDist wC.(sP!)) ps) isSphereOK
                      -- .&&. prop_CircumCircle (sP!a) (sP!b) (sP!c)
   where
+    ps             = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     (pA,pB,pC)     = face2DPoints sigma
     center         = circleCenter sigma
     radius         = circleRadius sigma
     wC             = WPoint radius center
-    cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) (indices sP)
+    cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) ps
     -- Test if the CircumSphere is empty
     isSphereOK     = and $ map testEmptySph cleanP
     testEmptySph i = 0 < (powerDist (sP!i) wC)
-
+       
 
 testHullEdge::SetPoint Point2D -> S1 Point2D -> Property
 testHullEdge sP edge = test
   where
+    ps     = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pA     = edge2DR edge
     pB     = edge2DL edge
     pp     = (\x -> pointSetPartition (whichSideOfPlane x) sP cleanP) <$> plane
     plane  = calcPlane sP edge
-    cleanP = filter (\i -> (i /= pA) && (i /= pB)) $ indices sP
+    cleanP = filter (\i -> (i /= pA) && (i /= pB)) ps
     test   = case pp of
       Nothing -> msgFail "no plane from face" False
       Just x  -> case (pointsOnB1 x, pointsOnB2 x, pointsOnPlane x) of
@@ -174,3 +212,32 @@ testHullEdge sP edge = test
         ([],_,_)   -> label "face on B1" True
         (_,[],_)   -> label "face on B2" True
         _          -> msgFail ("non-Hull face", x, edge) False
+        
+        
+data TestClosure = Open | Closed | Error deriving (Show, Eq)
+newtype ClosureID = CloID {testEdge::(Int, Int)} deriving (Show, Eq)
+instance Ord ClosureID where
+  compare (CloID (a1,a2)) (CloID (b1,b2)) = compEdge a1 a2 b1 b2
+  
+testClosure::IntMap (S2 Point2D) -> Set (S1 Point2D) -> (Property, Map ClosureID TestClosure)
+testClosure ss2 ss1 = (testError, cloS2)
+  where
+    testError = Map.foldl (\acc x -> acc .&&. ftest x) (property True) cloS2
+    ftest x = (msgFail ("Missing face!!! :" ++ (show . Map.filter (==Open) $ cloS2)) $ x /= Open)
+         .&&. (msgFail ("More than 2 faces per edge!!!") $ x /= Error)
+    
+    cloS1 = S.foldl funcS1 Map.empty ss1
+    funcS1 acc s1 = let
+      a           = edge2DR s1
+      b           = edge2DL s1
+      func _ Open = Closed
+      func _ _    = Error
+      in Map.insertWith func (CloID (a,b)) Open acc
+      
+    cloS2 = IM.foldl funcS2 cloS1 ss2
+    funcS2 acc s2 = let
+      (a, b, c)   = face2DPoints s2
+      func _ Open = Closed
+      func _ _    = Error
+      add p1 p2 = Map.insertWith func (CloID (p1, p2)) Open
+      in add a b $ add b c $ add c a acc

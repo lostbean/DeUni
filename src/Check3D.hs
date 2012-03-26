@@ -21,13 +21,18 @@ module Check3D where
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
-import Data.Array.Diff
+import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
+import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as S
 import qualified Data.List as L
+import qualified Data.Vector as Vec
+import Data.Vector (Vector, (!))
+
+import Hammer.Math.Vector hiding (Vector)
 
 import DeUni.DeWall
-import Math.Vector
 import DeUni.Types
 import DeUni.GeometricTools
 import DeUni.Dim3.Base3D
@@ -35,7 +40,7 @@ import DeUni.Dim3.Delaunay3D
 import DeUni.Dim3.Hull3D
 import DeUni.Dim3.ReTri3D
 
-import VTKGenSimplex
+import VTKRender
 
 runChecker =  do
   let myArgs = Args {replay = Nothing, maxSuccess = 1000, maxDiscard = 5000, maxSize = 1000, chatty = True}
@@ -70,9 +75,8 @@ instance Arbitrary Vec3 where
 instance (Arbitrary a) => Arbitrary (WPoint a) where
   arbitrary = WPoint 0 <$> arbitrary
   
-instance (Ix a, Integral a, Arbitrary b) => Arbitrary (DiffArray a b) where
-  arbitrary   =
-    (\x -> listArray (0,fromIntegral (length x - 1)) x) <$> arbitrary 
+instance (Arbitrary a) => Arbitrary (Vector a) where
+  arbitrary = Vec.fromList <$> arbitrary
 
 
 error_precisson = (10e-2)
@@ -88,21 +92,22 @@ prop_ConvHull box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Hull3D_err.vt
     testHull    = testIM testh hull
     testSize    = msgFail "gen obj /= num add" $ IM.size hull == count st
     testClosure = msgFail "open Hull" $ (S.null.externalFaces) st
-    ixps        = indices sp
-    ps          = elems sp
+    ixps        = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
+    ps          = Vec.toList sp
 
 
 prop_Delaunay::Box Point3D -> SetPoint Point3D -> Property
 prop_Delaunay box sp = (length ps) > 4 ==> whenFail (writeVTKfile "Delaunay3D_err.vtu" sp wall) fulltest
   where
-    fulltest   = testWall .&&. testHull .&&. testSize
+    fulltest   = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay3D box sp ixps
     testw x    = testProperTetrahedron sp x
     testh x    = testHullFace sp x
     testWall   = testIM testw wall
     testHull   = testSet testh (S.map activeUnit $ externalFaces st)
-    ixps       = indices sp
-    ps         = elems sp
+    testClo    = testClosure wall (S.map activeUnit $ externalFaces st)
+    ixps       = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
+    ps         = Vec.toList sp
     testSize   = msgFail "gen obj /= num add" $ IM.size wall == count st
     
 
@@ -133,7 +138,7 @@ prop_1stSimplex::Box Point3D -> SetPoint Point3D -> Property
 prop_1stSimplex box sP = pretest ==> test
   where
     (plane, pairBox) = cutBox box []
-    p  = indices sP 
+    p  = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1] 
     pp = pointSetPartition (whichBoxIsIt pairBox) sP p
     p1 = pointsOnB1 pp
     p2 = (pointsOnB2 pp) ++ (pointsOnPlane pp)
@@ -147,7 +152,7 @@ prop_1stFace::Box Point3D -> SetPoint Point3D -> Property
 prop_1stFace box sP = pretest ==> test
   where
     (plane, pairBox) = cutBox box []
-    p  = indices sP
+    p  = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pp = pointSetPartition (whichBoxIsIt pairBox) sP p
     p1 = pointsOnB1 pp
     p2 = (pointsOnB2 pp) ++ (pointsOnPlane pp)
@@ -161,11 +166,12 @@ testProperTetrahedron::SetPoint Point3D -> S2 Point3D -> Property
 testProperTetrahedron sP sigma = msgFail ("non empty sphere", [pA,pB,pC]) isSphereOK
                             -- .&&. prop_CircumSphere (sP!pA) (sP!pB) (sP!pC) (sP!pD)
   where
+    ps             = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     (pA,pB,pC,pD)  = tetraPoints sigma
     center         = circumSphereCenter sigma
     radius         = circumRadius sigma
     wC             = WPoint radius center
-    cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC) && (i /= pD)) (indices sP)
+    cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC) && (i /= pD)) ps
     -- Test if the CircumSphere is empty
     isSphereOK     = and $ map testEmptySph cleanP
     testEmptySph i = 0 < powerDist (sP!i) wC
@@ -174,10 +180,11 @@ testProperTetrahedron sP sigma = msgFail ("non empty sphere", [pA,pB,pC]) isSphe
 testHullFace::SetPoint Point3D -> S1 Point3D -> Property
 testHullFace sP face = test
   where
+    ps     = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     (pA,pB,pC) = face3DPoints face
     pp     = (\x -> pointSetPartition (whichSideOfPlane x) sP cleanP) <$> plane
     plane  = calcPlane sP face
-    cleanP = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) $ indices sP
+    cleanP = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) ps
     test   = case pp of
       Nothing -> msgFail "no plane from face" False
       Just x  -> case (pointsOnB1 x, pointsOnB2 x, pointsOnPlane x) of
@@ -186,3 +193,31 @@ testHullFace sP face = test
         ([],_,_)   -> label "face on B1" True
         (_,[],_)   -> label "face on B2" True
         _          -> msgFail ("non-Hull face", x, face3DPoints face) False
+        
+        
+data TestClosure = Open | Closed | Error deriving (Show, Eq)
+newtype ClosureID = CloID (Int, Int, Int) deriving (Show, Eq)
+instance Ord ClosureID where
+  compare (CloID a) (CloID b) = compFace a b
+  
+testClosure::IntMap (S2 Point3D) -> Set (S1 Point3D) -> Property
+testClosure ss2 ss1 = testError
+  where
+    testError = Map.foldl (\acc x -> acc .&&. ftest x) (property True) cloS2
+    ftest x = (msgFail ("Missing face!!!: " ++ (show . Map.filter (==Open) $ cloS2)) $ x /= Open)
+         .&&. (msgFail ("More than 2 faces per edge!!!") $ x /= Error)
+    
+    cloS1 = S.foldl funcS1 Map.empty ss1
+    funcS1 acc s1 = let
+      face        = CloID $ face3DPoints s1
+      func _ Open = Closed
+      func _ _    = Error
+      in Map.insertWith func face Open acc
+      
+    cloS2 = IM.foldl funcS2 cloS1 ss2
+    funcS2 acc s2  = let
+      (a, b, c, d) = tetraPoints s2
+      func _ Open  = Closed
+      func _ _     = Error
+      add p1 p2 p3 = Map.insertWith func (CloID (p1,p2,p3)) Open
+      in add a b c $ add a b d $ add b c d $ add c a d acc

@@ -1,5 +1,5 @@
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Delaunay3D |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Delaunay2D |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 {-# LANGUAGE RecordWildCards #-}
@@ -15,13 +15,14 @@ import Prelude hiding (null, lookup)
 import Data.List (map, foldl', null, (\\))
 import Control.Applicative ((<$>))
 import Data.Maybe
-import Data.Array.Diff hiding (elems)
+import Data.Vector ((!))
+
+import Hammer.Math.Vector
 
 import DeUni.GeometricTools
 import DeUni.Types
 import DeUni.FirstSeed
 import DeUni.Dim2.Base2D
-import Math.Vector
 
 import DeUni.Dim2.ReTri2D
 
@@ -52,8 +53,8 @@ makeFirstSimplex alpha sP sideA sideB ps = do
   
 edge3DPos pairBox sP e = edgePos pairBox sP (edge2DL.activeUnit $ e) (edge2DR.activeUnit $ e)
 
-extractAllFaceEdges::Maybe (ActiveSubUnit S2 Point2D) -> SetPoint Point2D -> S2 Point2D -> [ActiveSubUnit S2 Point2D]
-extractAllFaceEdges old sP sigma = map toSimplexFace fsAll
+extractAllFaceEdges::SetPoint Point2D -> S2 Point2D -> [ActiveSubUnit S2 Point2D]
+extractAllFaceEdges sP sigma = map toSimplexFace fsAll
   where
     (a,b,c) = face2DPoints sigma
     fsAll   = [((a,b), c), ((b,c), a), ((c,a), b)]

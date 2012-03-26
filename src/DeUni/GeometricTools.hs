@@ -10,11 +10,10 @@ import Control.Applicative ((<$>))
 import Control.Monad.State.Lazy
 import Data.List (foldl')
 import Data.Maybe
-import Data.Array.Diff hiding (elems)
 
+import Hammer.Math.Vector
 
 import DeUni.Types
-import Math.Vector
 
 -- | Projection A on B = B * (A°B)/(B°B)
 projAonB::(Vector a, DotProd a) => a -> a -> a
@@ -36,8 +35,8 @@ whichSideOfPlane plane p = case compare projection dist of
     projection = p &. (normalize.planeNormal) plane
     dist       = planeDist plane
 
- -- | Project a vector\point on the plane that goes throw the oringe.
- --   It discard the distance on Plane data. It assumes that the plane pass throw the oringe
+-- | Project a vector-point on the plane that goes throw the oringe.
+--   It discard the distance on Plane data. It assumes that the plane pass throw the oringe
 getProjOnPlane::(PointND a) => Plane a -> a -> a
 getProjOnPlane plane p = projOnPlane
   where

@@ -19,13 +19,6 @@ import Check2D as C2D
 import CheckCommon as C2C
 
 import Test.QuickCheck
-import Data.Array.Diff
-
-import DeUni.DeWall
-import Math.Vector
-import DeUni.Types
-import DeUni.Dim3.Base3D
-import DeUni.GeometricTools
 
 
 main = do

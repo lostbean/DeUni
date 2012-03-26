@@ -16,11 +16,12 @@ import Control.Applicative ((<$>))
 import Data.Maybe
 import Data.Array.Diff hiding (elems)
 
+import Hammer.Math.Vector
+
 import DeUni.GeometricTools
 import DeUni.Types
 import DeUni.FirstSeed
 import DeUni.Dim3.Base2D
-import Math.Vector
 
 
 -- | It is not possible to implement convex hull 2D due the subUints
