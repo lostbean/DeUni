@@ -40,13 +40,18 @@ library
                         DeUni.Dim3.ReTri3D
 
 Executable tester-DeUni
-    if flag(test)
-      Buildable:        False
-    else
-      Buildable:        True
     hs-source-dirs:     src
     main-is:            Main-Tester.hs
-    build-depends:        base            <= 5
+    if flag(test)
+      Buildable:        True
+
+      Other-Modules:      CheckCommon
+                        , Check2D
+                        , Check3D
+                        , VTKRender
+                        , RenderSVG
+
+      build-depends:      base            <= 5
                         , QuickCheck      >= 2.1 && < 3
                         , hammer          >= 0.1.1
                         , diagrams-svg    >= 0.2
@@ -56,11 +61,19 @@ Executable tester-DeUni
                         , blaze-builder   >= 0.3.1
                         , bytestring      >= 0.9.2
 
+    else
+      Buildable:        False
+
+
 Executable quicker-DeUni
-    Buildable:          True
     hs-source-dirs:     src
     main-is:            Main-Quicker.hs
-    build-depends:        base            <= 5
+    if flag(test)
+      Buildable:        True
+
+      Other-Modules:    RandomGenerator
+
+      build-depends:      base            <= 5
                         , vector          >= 0.9.1  
                         , criterion       >= 0.6.0.0 && <= 0.6.0.1
                         , hammer          >= 0.1.1
@@ -68,3 +81,7 @@ Executable quicker-DeUni
                         , random-source   >= 0.3.0.2
                         , random-fu       >= 0.2.1.1
                         , mersenne-random-pure64 >= 0.2.0.3
+
+    else
+      Buildable:        False
+
