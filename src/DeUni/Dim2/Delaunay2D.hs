@@ -77,24 +77,13 @@ makeSimplex actFace sP ps = do
                          , face2DPoints = (a,b,i) }
     -- | Remove points from face to avoid get 0.0 in findMin
     cleanP        = filter (\i -> (isSideOk i) && (i /= a) && (i /= b)) ps
-    findMinRadius = findMinimunButZero (getFaceDist sP actFace) sP cleanP
+    findMinRadius = findMinimunButZero getFaceDist sP cleanP
+    getFaceDist   = fst . getFaceDistCenter (sP!a) (sP!b) . (sP!)
     isSideOk i    = (sP!.i &- sP!.a) &. nd > 0
     edge          = activeUnit actFace
     a             = edge2DR edge
     b             = edge2DL edge
     nd            = assocND actFace
 
-getFaceDist::SetPoint Point2D -> ActiveSubUnit S2 Point2D -> PointPointer -> Double
-getFaceDist sP actEdge i = if dir > 0 then dist else -dist
-  where
-    -- Signed values from getfaceDistCenter are wrong
-    dist   = abs d
-    (d, c) = getFaceDistCenter (sP!a) (sP!b) (sP!i)
-    a      = (edge2DR.activeUnit) actEdge
-    b      = (edge2DL.activeUnit) actEdge
-    nd     = assocND actEdge
-    n1     = (sP!.i) &- (sP!.a)
-    n2     = c       &- (sP!.a)
-    dir    = (n1 &. nd) * (n2 &. nd)
     
 

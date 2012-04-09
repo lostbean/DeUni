@@ -71,17 +71,13 @@ makeSimplex actFace sP ps = do
     buildSimplexFace (_, d) =
       let (radius, center) = getCircumSphere (sP!a) (sP!b) (sP!c) (sP!d) 
       in return Tetrahedron { circumSphereCenter = center
-                            , circumRadius = radius
+                            , circumSphereRadius = radius
                             , tetraPoints  = (a,b,c,d) }
     -- | Remove points from face to avoid get 0.0 in findMin
     cleanP        = filter (\i -> (isSideOk i) && (i /= a) && (i /= b) && (i /= c)) ps
-    findMinRadius = findMinimunButZero (getFaceDist sP actFace) sP cleanP
+    findMinRadius = findMinimunButZero getFaceDist sP cleanP
+    getFaceDist   = fst . getFaceDistCenter (sP!a) (sP!b) (sP!c) . (sP!)
     isSideOk i    = 0 < (sP!.a &- sP!.i) &. nd
     face@(a,b,c)  = (face3DPoints.activeUnit) actFace
     nd            = assocND actFace
  
-
-getFaceDist::SetPoint Point3D -> ActiveSubUnit S2 Point3D -> PointPointer -> Double
-getFaceDist sP actFace i = fst $ getFaceDistCenter (sP!a) (sP!b) (sP!c) (sP!i)
-  where
-    (a, b, c) = (face3DPoints.activeUnit) actFace

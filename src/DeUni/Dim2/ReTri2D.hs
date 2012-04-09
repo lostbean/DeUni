@@ -16,15 +16,23 @@ getCircumCircle a b c = (radius, center)
     radius      = (normsqr $ point a &- center) - weigth a
   
 getFaceDistCenter::WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> (Double, Vec2)
-getFaceDistCenter a b c = (signDist, center)
-  where
+getFaceDistCenter a b c = let
     center       = (-0.5) *& ((mux *& q1) &+ ( muy *& q2))
-    signDist     = if signRDet r then -dist else dist
-    dist         = muy*0.5 + (q2 &. (point a))
+    dist         = muy * 0.5 + (q2 &. point a)
     m            = getM a b c
     (q,r)        = qrDecomp m
-    (mux, muy)   = solveMu ((-1) *& (getAlpha a b c)) r
+    (mux, muy)   = solveMu ((-1) *& getAlpha a b c) r
     (Mat2 q1 q2) = q
+    
+    nd   = let (Vec2 x y) = point b &- point a in Vec2 (-y) x
+    dir  = (nd &. (point c &- point a)) * (nd &. (center &- point a))
+    absdist  = abs dist
+    signDist = if dir > 0 then absdist else -absdist
+    
+    -- For some reason the sign determined by matrix don't work
+    --signDist     = if signRDet r then -dist else dist
+    
+    in (signDist, center)
     
 getM :: WPoint Point2D -> WPoint  Point2D -> WPoint Point2D -> Mat2
 getM a b c = Mat2 (point b &- point a) (point c &- point a)
