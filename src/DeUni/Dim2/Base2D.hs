@@ -102,6 +102,10 @@ instance PointND Point2D where
           halfX = (xMax2D + xMin2D)/2
           halfY = (yMax2D + yMin2D)/2
 
+
+instance Show (BoxPair Point2D) where
+  show b = show (halfBox1 b, halfBox2 b)
+
 plane2D::Vec2 -> Vec2 -> Maybe (Plane Point2D)
 plane2D a b
   | nSize == 0 = Nothing
