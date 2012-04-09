@@ -110,14 +110,38 @@ facePos pairBox sP a b c = case (findPos $ sP!.a, findPos $ sP!.b, findPos $ sP!
 -- | Performance can be improve by removing the duplicate call to "func" in "dropZero"
 -- and the first "(func x, x)"
 findMinimunButZero::(PointND a)=>(PointPointer -> Double) -> SetPoint a -> [PointPointer] -> Maybe (Double, PointPointer)
-findMinimunButZero func sP ps = case pStartWithNoZero of
-    []     -> Nothing
-    (x:xs) -> Just $ foldl' (\pair i -> foldMaybe pair (func i, i)) (func x, x) xs
-    where
-      pStartWithNoZero = dropWhile dropZero ps
-      dropZero = (flip$(==).func) 0
-      foldMaybe new@(n, i) old@(nOld, iOld)
-        | n == 0   = old
-        | n > nOld = old
-        | n < nOld = new
-        | otherwise = error $ "Multiple points on circle or sphere! " ++ show new 
+findMinimunButZero func sP ps = let
+  ds     = map dist ps
+  dist i = Just (func i, i)
+  
+  foldMaybe Nothing old = old
+  foldMaybe new@(Just (dist, i)) old = case old of
+    Just (olddist, oldi)
+      | dist == 0      -> old
+      | dist > olddist -> old
+      | dist < olddist -> new
+      | otherwise      -> error $ "Multiple points on circle or sphere! " ++ show new
+    Nothing -> new
+
+  in foldl' foldMaybe Nothing ds
+     
+-- | Performance can be improve by removing the duplicate call to "func" in "dropZero"
+-- and the first "(func x, x)"
+findMinimunButZero'::(PointND a)=>(PointPointer -> Maybe Double) -> SetPoint a -> [PointPointer] -> Maybe (Double, PointPointer)
+findMinimunButZero' func sP ps = let
+  ds = map dist ps
+  
+  dist i = case func i of
+    Just x -> Just (x, i)
+    _      -> Nothing
+  
+  foldMaybe Nothing old = old
+  foldMaybe new@(Just (dist, i)) old = case old of
+    Just (olddist, oldi)
+      | dist == 0      -> old
+      | dist > olddist -> old
+      | dist < olddist -> new
+      | otherwise      -> error $ "Multiple points on circle or sphere! " ++ show new
+    Nothing -> new
+
+  in foldl' foldMaybe Nothing ds
