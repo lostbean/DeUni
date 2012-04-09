@@ -42,8 +42,7 @@ makeFirstSimplex alpha sP sideA sideB ps = do
   let 
     newND
       | (null.pointsOnB1) pp = neg nd
-      | (null.pointsOnB2) pp = nd
-      | otherwise            = error $ "Delaunay3D: Wrong first Simplex!!!"
+      | otherwise            = nd
     nd = plane2DNormal plane                               
     psClean = ps \\ [pA, pB]
     pp = pointSetPartition (whichSideOfPlane plane) sP psClean
