@@ -47,32 +47,36 @@ extractAllFaceEdges sP sigma =
 makeFace::ActiveSubUnit S1 Point3D -> SetPoint Point3D -> [PointPointer] -> Maybe (S1 Point3D)
 makeFace _ _ [] = Nothing
 makeFace e sP ps = do
-  refPoint  <- get1stAng ps
-  (pC, ang) <- findNext refPoint
+  (pC, ang) <- findNext <$> get1stAng ps
   return $ Face3D { face3DPoints = (pA, pB, pC) }
   where
     pA = (edge3DL.activeUnit) e
     pB = (edge3DR.activeUnit) e
 
-    get1stAng []    = Nothing
-    get1stAng (p:ps)
-      | isNaN ang = get1stAng ps
-      | otherwise = Just $ (p, ang)
-      where ang = calcAngBetweenSimplex e sP p
+    get1stAng []     = Nothing
+    get1stAng (p:ps) = case calcAngBetweenSimplex e sP p of 
+      Nothing  -> get1stAng ps
+      Just ang -> Just (p, ang)
 
-    scanMin old x
-      | isNaN ang       = old
-      | ang < (snd old) = (x, ang)
-      | otherwise       = old
-      where ang = calcAngBetweenSimplex e sP x
+    scanMin old@(p0, ang0) p = case calcAngBetweenSimplex e sP p of
+      Nothing -> old
+      Just ang
+        | p0 == p    -> old
+        | truncation > abs (ang - ang0) -> let
+          dist = getSignDist sP pA pB
+          in if dist p0 > dist p
+             then (p, ang)
+             else old
+        | ang < ang0 -> (p, ang)
+        | otherwise  -> old
 
-    findNext a1 = return $ foldl' scanMin a1 ps
+    findNext a1@(p, ang) = foldl' scanMin a1 ps
 
 
-calcAngBetweenSimplex::ActiveSubUnit S1 Point3D -> SetPoint Point3D -> PointPointer -> Double
+calcAngBetweenSimplex::ActiveSubUnit S1 Point3D -> SetPoint Point3D -> PointPointer -> Maybe Double
 calcAngBetweenSimplex ae sP p
-  | pA==p || pB==p || pC==p = 0/0
-  | otherwise               = (normalToEdge vOnOldFace) &. (normalToEdge vOnNewFace)
+  | pA==p || pB==p || pC==p = Nothing
+  | otherwise               = return $ (normalToEdge vOnOldFace) &. (normalToEdge vOnNewFace)
   where
     pA             = (edge3DL.activeUnit) ae
     pB             = (edge3DR.activeUnit) ae

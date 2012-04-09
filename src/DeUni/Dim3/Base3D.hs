@@ -14,16 +14,17 @@
 
 module DeUni.Dim3.Base3D where
 
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*>))
 import Control.Monad.State.Lazy
 import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
 import qualified Data.List as L
-
+import Data.Vector ((!))
 import Hammer.Math.Vector
 
 import DeUni.GeometricTools
 import DeUni.Types
 import DeUni.FirstSeed
+import DeUni.Dim2.ReTri2D
 
 
 instance PointND Point3D where
@@ -132,21 +133,66 @@ instance PointND Point3D where
 
 
 getThrirdPoint :: (PointND Point3D) => SetPoint Point3D -> PointPointer -> PointPointer -> [PointPointer] -> Maybe (PointPointer, Point3D)
-getThrirdPoint sP pA pB ps = scan ps
+getThrirdPoint sP pA pB ps = do
+  (x, i) <- findThird
+  getND i
   where
     cleanList x = ps \\ [pA, pB, x]
-    scan [] = Nothing
-    scan (x:xs)
-      | x == pA || x == pB = scan xs
-      | otherwise =
-        let face = Face3D { face3DPoints = (pA, pB, x) }
+    justHull    = filter isHull ps
+    
+    findThird = let
+      dist = getSignDist sP pA pB
+      in findMinimunButZero' dist sP justHull
+    
+    isHull x
+      | x == pA || x == pB = False
+      | otherwise = let
+        face = Face3D { face3DPoints = (pA, pB, x) }
         in case calcPlane sP face of
           Just plane
-            | (L.null.pointsOnB1) pp && (L.null.pointsOnB2) pp -> Nothing
-            | (L.null.pointsOnB1) pp                           -> return (x, nd)
-            | (L.null.pointsOnB2) pp                           -> return (x, neg nd)
-            | otherwise                                        -> scan xs
+            | (L.null.pointsOnB1) pp -> True
+            | (L.null.pointsOnB2) pp -> True
+            | otherwise              -> False
             where pp = pointSetPartition (whichSideOfPlane plane) sP (cleanList x)
                   nd = planeNormal plane
-          Nothing    -> scan xs
-          
+          Nothing                    -> False
+    
+    getND x = let
+      face = Face3D { face3DPoints = (pA, pB, x) }
+      func plane
+        | (L.null.pointsOnB1) pp = return (x, nd)
+        | otherwise              = return (x, neg nd)
+        where pp = pointSetPartition (whichSideOfPlane plane) sP (cleanList x)
+              nd = planeNormal plane
+      in calcPlane sP face >>= func
+
+-- | Rotate points from a plane with normal nd to a plane with normal = (0,0,1)
+-- using axi-angle and Rodriges' equation.
+rotate::Point3D -> Point3D -> Point3D
+rotate nd x = let
+  v   = Vec3 0 0 1
+  w   = nd &^ v
+  cos = nd &. v
+  sin = sqrt (1 - cos * cos)
+  in x &* cos &+ (w &^ x) &* sin &+ w &* ((w &. x)*(1 - cos))
+
+-- | Get the signed distance from c to the center of the edge <a,b> which are circumscribed 
+-- by a circle.
+getSignDist::SetPoint Point3D -> PointPointer -> PointPointer -> PointPointer -> Maybe Double
+getSignDist sp a b c = let
+  face = Face3D { face3DPoints = (a, b, c) }
+  getIn2D plane = let
+    rot = rotate (planeNormal plane)
+    -- rotate the face <a,b,c>, where a,b,c = R3, to a face with normal // (0,0,1) 
+    (Vec3 x1 y1 _) = rot (sp!.a)
+    (Vec3 x2 y2 _) = rot (sp!.b)
+    (Vec3 x3 y3 _) = rot (sp!.c)
+    -- and cast the points to R2 by excluding their z values
+    pA = (sp!a) {point = Vec2 x1 y1}
+    pB = (sp!b) {point = Vec2 x2 y2}
+    pC = (sp!c) {point = Vec2 x3 y3}
+    -- find the circumcircle and the signed distance
+    in fst $ getFaceDistCenter pA pB pC
+
+  in getIn2D <$> calcPlane sp face
+  
