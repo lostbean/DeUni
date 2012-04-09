@@ -53,13 +53,17 @@ instance PointND Point3D where
   
   data S2 Point3D      = Tetrahedron
    { circumSphereCenter :: Point3D
-   , circumRadius       :: Double  
+   , circumSphereRadius :: Double  
    , tetraPoints        :: (PointPointer, PointPointer, PointPointer, PointPointer)
    } deriving (Show, Eq)
 
   compS0 a b = compEdge (edge3DL a) (edge3DR a) (edge3DL b) (edge3DR b)    
   
   compS1 a b = compFace (face3DPoints a) (face3DPoints b)
+  
+  circumOrigin = circumSphereCenter
+  
+  circumRadius = circumSphereRadius  
   
   isInBox box (Vec3 x y z) = let 
     between min max x

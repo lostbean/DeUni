@@ -55,7 +55,11 @@ instance PointND Point2D where
   
   compS0 a b = undefined
 
-  compS1 a b = compEdge (edge2DL a) (edge2DR a) (edge2DL b) (edge2DR b)    
+  compS1 a b = compEdge (edge2DL a) (edge2DR a) (edge2DL b) (edge2DR b)
+  
+  circumOrigin = circleCenter
+  
+  circumRadius = circleRadius
     
   isInBox box (Vec2 x y) = let 
     between min max x

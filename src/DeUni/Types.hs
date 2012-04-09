@@ -170,6 +170,8 @@ class (HVec.Vector p, DotProd p, Show p) => PointND p where
   data S2 p    :: *
   compS0       :: S0 p -> S0 p -> Ordering
   compS1       :: S1 p -> S1 p -> Ordering
+  circumOrigin :: S2 p -> p
+  circumRadius :: S2 p -> Double
   isInBox      :: Box p -> p -> Bool
   calcPlane    :: SetPoint p -> S1 p -> Maybe (Plane p)
   planeNormal  :: Plane p -> p
