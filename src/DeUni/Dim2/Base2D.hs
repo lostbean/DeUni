@@ -111,7 +111,9 @@ plane2D a b
     (Vec2 x y) = b &- a
     n     = Vec2 (-y) x
     nSize = len n
-    normN = normalize n
+    -- Double normalization to avoid floating point operations errors in some computers
+    -- Critical in case of multiple points algined in a plane e.g. on a face of the box
+    normN = (normalize . normalize) n
     d     = normN &. a
 
 

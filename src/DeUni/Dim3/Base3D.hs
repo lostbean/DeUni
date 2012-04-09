@@ -88,7 +88,9 @@ instance PointND Point3D where
       (a,b,c) = face3DPoints face
       n       = (sp!.b &- sp!.a) &^ (sp!.c &- sp!.a)
       nSize   = len n
-      normN   = normalize n
+      -- Double normalization to avoid floating point operations errors in some computers
+      -- Critical in case of multiple points algined in a plane e.g. on a face of the box
+      normN   = (normalize . normalize) n
       d       = normN &. (sp!.a)
       inv n   = (-1) *& n
 

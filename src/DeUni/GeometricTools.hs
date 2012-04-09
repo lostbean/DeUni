@@ -15,6 +15,9 @@ import Hammer.Math.Vector
 
 import DeUni.Types
 
+truncation::Double
+truncation = 1e-10
+
 -- | Projection A on B = B * (A°B)/(B°B)
 projAonB::(Vector a, DotProd a) => a -> a -> a
 projAonB a b = b &* ((a &. b) / (b &. b))
@@ -27,14 +30,15 @@ powerDist::(PointND a) => WPoint a -> WPoint a -> Double
 powerDist a b = (normsqr $ point a &- point b) - weigth a - weigth b
 
 whichSideOfPlane::(PointND a) => Plane a -> a -> Position
-whichSideOfPlane plane p = case compare projection dist of
-  EQ -> OnPlane        
-  GT -> B1
-  LT -> B2
+whichSideOfPlane plane p 
+  | truncation > delta = OnPlane
+  | projection > dist  = B1
+  | otherwise          = B2
   where
     projection = p &. (normalize.planeNormal) plane
     dist       = planeDist plane
-
+    delta      = abs (projection - dist)
+    
 -- | Project a vector-point on the plane that goes throw the oringe.
 --   It discard the distance on Plane data. It assumes that the plane pass throw the oringe
 getProjOnPlane::(PointND a) => Plane a -> a -> a
