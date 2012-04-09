@@ -49,7 +49,6 @@ instance PointND Point3D where
   
   data S1 Point3D      = Face3D
    { face3DPoints   :: (PointPointer, PointPointer, PointPointer)
-   --, face3DND       :: Point3D
    } deriving (Show)
   
   data S2 Point3D      = Tetrahedron

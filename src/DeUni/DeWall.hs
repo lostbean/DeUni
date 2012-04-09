@@ -53,6 +53,7 @@ import DeUni.Dim3.Hull3D
 import DeUni.Dim3.Base3D
 import DeUni.Dim2.Delaunay2D
 
+
 type SetSimplex2D = IntMap (S2 Point2D)
 type SetSimplex3D = IntMap (S2 Point3D)
 type SetFace3D    = IntMap (S1 Point3D)
@@ -61,7 +62,7 @@ type SetFace3D    = IntMap (S1 Point3D)
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Exposed functions |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-reRun::(Buildable s p, Ord (Sub s p), Show (Plane p))=> StateVarsMBC s p -> Box p -> SetPoint p -> [PointPointer] -> SetActiveSubUnits s p -> (IntMap(s p), StateVarsMBC s p)
+reRun::(Buildable s p, Ord (Sub s p))=> StateVarsMBC s p -> Box p -> SetPoint p -> [PointPointer] -> SetActiveSubUnits s p -> (IntMap(s p), StateVarsMBC s p)
 reRun st box sP ps faces = runState (mbc ps faces box []) init
   where
     init = st { aflAlpha=S.empty, aflBox1=S.empty, aflBox2=S.empty, setPoint=sP }
@@ -93,8 +94,7 @@ initState sP = StateVarsMBC
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Non-Exposed functions |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 
 -- | Marriage Before Conquer
 mbc::(Buildable slx dim, Ord (Sub slx dim))=> [PointPointer] -> SetActiveSubUnits slx dim -> Box dim -> [Position] -> StateMBC slx dim (IntMap (slx dim))
