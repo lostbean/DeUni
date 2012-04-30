@@ -22,11 +22,12 @@ import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
 import Data.Monoid ((<>))
+import Data.Maybe (isJust)
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Set (Set)
+import Data.Map (Map)
+import qualified Data.IntMap as IM
+import qualified Data.Map as Map
 import qualified Data.Set as S
 import qualified Data.List as L
 import qualified Data.Vector as Vec
@@ -46,7 +47,7 @@ import RenderSVG
 
 
 runChecker =  do
-  let myArgs = Args {replay = Nothing, maxSuccess = 1000, maxDiscard = 5000, maxSize = 1000, chatty = True}
+  let myArgs = Args {replay = Nothing, maxSuccess = 1000, maxDiscard = 500, maxSize = 1000, chatty = True}
   print "Testing 1st edge.."    
   quickCheckWith myArgs prop_1stEdge
   
@@ -60,24 +61,39 @@ runChecker =  do
   quickCheckWith myArgs prop_Delaunay
   
 
-
 instance Arbitrary (Box Point2D) where
-  arbitrary = liftM2 getBox max min
-    where 
-      getBox max min = Box2D {xMax2D=max, xMin2D=min, yMax2D=max, yMin2D=min}
-      min = choose (-500,-200)
-      max = choose (500,200)
+  arbitrary = let      
+    getBoxSqr = liftM2 getBox max min
+    getBoxRect = do
+      max1 <- max
+      max2 <- max
+      min1 <- min
+      min2 <- min
+      return $ Box2D {xMax2D=max1, xMin2D=min1, yMax2D=max2, yMin2D=min2}
+    getBox max min = Box2D {xMax2D=max, xMin2D=min, yMax2D=max, yMin2D=min}
+    min = frequency [(1, elements [-550,-250]), (2, choose (-550,-250))]
+    max = frequency [(1, elements [550,  250]), (2, choose (550,  250))]
+    in  oneof [getBoxSqr, getBoxRect]
 
 instance Arbitrary Vec2 where
-  arbitrary = liftM2 Vec2 p p
-    where p = choose (-200,200)
-
+  arbitrary = let p = choose (-200,200) in liftM2 Vec2 p p
+       
 instance (Arbitrary a) => Arbitrary (WPoint a) where
-  arbitrary = liftM2 WPoint s arbitrary
-    where s = choose (1, 8)
+  arbitrary = let
+    s = choose (1, 10)
+    in liftM2 WPoint s arbitrary
   
-instance (Arbitrary a) => Arbitrary (Vector a) where
-  arbitrary = Vec.fromList <$> arbitrary
+instance Arbitrary (Vector (WPoint Point2D)) where
+  arbitrary = let
+    s = choose (1, 10)
+    vecWall = let
+      p1 = elements [-200,200]
+      p2 = choose (-200,200)
+      in oneof [ liftM2 Vec2 p1 p2, liftM2 Vec2 p2 p1 ]
+    wpWall = frequency [ (20, arbitrary), (1, liftM2 WPoint s vecWall) ]
+    in Vec.fromList <$> oneof [ listOf arbitrary
+                              , listOf wpWall ]
+
 
 error_precisson = (10e-3)
 
@@ -107,11 +123,6 @@ prop_Delaunay box sp = (length ps) > 4 ==> whenFail (log) fulltest
          <> renderSetPoint2D sp
          <> renderSetPair sp opens
       
-      dia = closeUpOnBox box $
-            renderBox2D box
-         <> renderSetS2Circle wall
-         <> renderSetPoint2D sp
-      
       dia2 = closeUpOnBox box $
              renderBox2D box
           <> renderSetS2Triangle sp wall
@@ -124,10 +135,9 @@ prop_Delaunay box sp = (length ps) > 4 ==> whenFail (log) fulltest
           <> renderSetS2Circle wall
           
       in do
-        renderSVG "test1.svg" (sizeSpec (Just 500, Just 500)) dia
-        renderSVG "test2.svg" (sizeSpec (Just 500, Just 500)) dia2
-        renderSVG "test3.svg" (sizeSpec (Just 500, Just 500)) dia3
-        renderSVG "opens.svg" (sizeSpec (Just 500, Just 500)) op
+        renderSVG "Delaunay+hull.svg" (sizeSpec (Just 500, Just 500)) dia2
+        renderSVG "Delaunay+circle.svg" (sizeSpec (Just 500, Just 500)) dia3
+        renderSVG "openEdges.svg" (sizeSpec (Just 500, Just 500)) op
 
 testIM test map
   | IM.null map = err
@@ -163,7 +173,7 @@ prop_1stSimplex box sP = pretest ==> test
     pretest          = (length p) > 4 && p1 /= [] && p2 /= []
     test             = case makeFirstSimplex plane sP p1 p2 p of
         Just sigma -> testProperFace sP sigma
-        _          -> msgFail "non-gen 1st Face3D" False
+        _          -> msgFail "non-gen 1st Face2D" False
 
 
 prop_1stEdge::Box Point2D -> SetPoint Point2D -> Property
@@ -177,12 +187,11 @@ prop_1stEdge box sP = pretest ==> test
     pretest          = (length p) > 4 && p1 /= [] && p2 /= []
     test             = case getFirstEdge plane sP p1 p2 of
         Just (pA, pB) -> let edge = Edge2D pA pB in testHullEdge sP edge
-        _         -> msgFail "non-gen 1st Face3D" False
+        _             -> msgFail "non-gen 1st Edge2D" False
 
 
 testProperFace::SetPoint Point2D -> S2 Point2D -> Property
-testProperFace sP sigma = msgFail ("non empty circle", [pA,pB,pC], map (powerDist wC.(sP!)) ps) isSphereOK
-                     -- .&&. prop_CircumCircle (sP!a) (sP!b) (sP!c)
+testProperFace sP sigma =  whenFail (log) $ msgFail ("non empty sphere", testAllPoints, sigma, sP!pA, sP!pB, sP!pC) isSphereOK
   where
     ps             = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     (pA,pB,pC)     = face2DPoints sigma
@@ -191,27 +200,55 @@ testProperFace sP sigma = msgFail ("non empty circle", [pA,pB,pC], map (powerDis
     wC             = WPoint radius center
     cleanP         = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) ps
     -- Test if the CircumSphere is empty
-    isSphereOK     = and $ map testEmptySph cleanP
-    testEmptySph i = 0 < (powerDist (sP!i) wC)
-       
+    isSphereOK     = null testAllPoints
+    testAllPoints  = filter isJust $ map testEmptySph cleanP
+    testEmptySph i
+      | 0 < powerDist (sP!i) wC = Nothing
+      | otherwise = Just (i, powerDist (sP!i) wC)
+    log = let
+      box = Box2D {xMax2D = 500, xMin2D = -500, yMax2D = 500, yMin2D = -500}
+      s   = IM.singleton 1 sigma
+      dia = closeUpOnBox box
+          $ renderSetPoint2D sP
+         <> renderSetS2Triangle sP s
+         <> renderSetS2Circle s
+      dia2 = renderSetPoint2D sP
+         <> renderSetS2Triangle sP s
+         <> renderSetS2Circle s
+      in do
+        renderSVG "ProperFace.svg" (sizeSpec (Just 500, Just 500)) dia
+        renderSVG "ProperFace2.svg" (sizeSpec (Just 500, Just 500)) dia2
+
 
 testHullEdge::SetPoint Point2D -> S1 Point2D -> Property
-testHullEdge sP edge = test
+testHullEdge sP edge = whenFail (log) test
   where
     ps     = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pA     = edge2DR edge
     pB     = edge2DL edge
-    pp     = (\x -> pointSetPartition (whichSideOfPlane x) sP cleanP) <$> plane
     plane  = calcPlane sP edge
     cleanP = filter (\i -> (i /= pA) && (i /= pB)) ps
-    test   = case pp of
+    test   = case plane of
       Nothing -> msgFail "no plane from face" False
-      Just x  -> case (pointsOnB1 x, pointsOnB2 x, pointsOnPlane x) of
-        ([],[],[]) -> msgFail "no points on partition" False
-        ([],[],_)  -> msgFail "all points on plane" False
-        ([],_,_)   -> label "face on B1" True
-        (_,[],_)   -> label "face on B2" True
-        _          -> msgFail ("non-Hull face", x, edge) False
+      Just x  -> let
+        pp = pointSetPartition (whichSideOfPlane x) sP cleanP
+        in case (pointsOnB1 pp, pointsOnB2 pp, pointsOnPlane pp) of
+          ([],[],[]) -> msgFail "no points on partition" False
+          ([],[],_ ) -> msgFail "all points on plane" False
+          ([],_ ,_ ) -> label "face on B1" True
+          (_,[] ,_ ) -> label "face on B2" True
+          (b1,b2, _) -> let 
+            fclean = filter (\p -> (10e-8) > ((sP!.pA &- sP!.p) &. (plane2DNormal x))) 
+            in msgFail ("non-Hull face", x, edge) False
+               --if null (fclean b1) || null (fclean b2)
+               --then label "face on B1" True
+               --else msgFail ("non-Hull face", x, edge) False
+    log = let
+      hull = S.singleton edge
+      dia  = renderSetPoint2D sP
+         <> renderSetS1 sP hull
+      in do
+        renderSVG "HullEdge.svg" (sizeSpec (Just 500, Just 500)) dia
         
         
 data TestClosure = Open | Closed | Error deriving (Show, Eq)
