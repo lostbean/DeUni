@@ -5,6 +5,8 @@ module RenderSVG where
 
 import qualified Data.ByteString.Lazy as BS
 import qualified Blaze.ByteString.Builder as B
+import Text.Blaze.Svg.Renderer.Utf8 (renderSvg)
+
 import qualified Data.Vector as Vec
 import qualified Data.List as L
 import Data.Vector (Vector)
@@ -33,7 +35,7 @@ sizeSpec (width, height) = case (width, height) of
 renderSVG :: String -> SizeSpec2D -> Diagram SVG R2 -> IO ()
 renderSVG fileName sizeSpec dia = let
   build = renderDia SVG (SVGOptions fileName sizeSpec) dia
-  in BS.writeFile fileName (B.toLazyByteString build)
+  in BS.writeFile fileName (renderSvg build)
                       
 closeUpOnBox::Box Point2D -> Diagram SVG R2 -> Diagram SVG R2
 closeUpOnBox Box2D{..} = let
