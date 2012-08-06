@@ -13,7 +13,7 @@ getCircumSphere::WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Po
 getCircumSphere a b c d = (radius, center) 
   where
     (dist, center) = getFaceDistCenter a b c d
-    radius         = (normsqr $ point a &- center) - weigth a
+    radius         = (normsqr $ point a &- center) - weight a
   
 getFaceDistCenter::WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> (Double, Vec3)  
 getFaceDistCenter a b c d = (signDist, center)
@@ -31,7 +31,7 @@ getM a b c d = Mat3 (point b &- point a) (point c &- point a) (point d &- point 
 
 getAlpha :: WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> Vec3
 getAlpha a b c d = Vec3 (fun b a) (fun c a) (fun d a)
-  where fun x y = (normsqr.point) x - (normsqr.point) y - weigth x + weigth y
+  where fun x y = (normsqr.point) x - (normsqr.point) y - weight x + weight y
 
 solveMu::Vec3 -> Mat3 -> (Double,Double,Double)
 solveMu a r@(Mat3 r1 r2 r3) = (mux, muy, muz)

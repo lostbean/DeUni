@@ -26,8 +26,8 @@ projAonB a b = b &* ((a &. b) / (b &. b))
 normalofAtoB::(Vector a, DotProd a) => a -> a -> a
 normalofAtoB a b = normalize $ a &- (projAonB a b)
 
-powerDist::(PointND a) => WPoint a -> WPoint a -> Double
-powerDist a b = (normsqr $ point a &- point b) - weigth a - weigth b
+powerDist :: (PointND a) => WPoint a -> WPoint a -> Double
+powerDist a b = (normsqr $ point a &- point b) - weight a - weight b
 
 whichSideOfPlane::(PointND a) => Plane a -> a -> Position
 whichSideOfPlane plane p 

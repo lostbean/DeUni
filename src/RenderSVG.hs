@@ -109,7 +109,7 @@ renderTri a b c = let
      # translate (v2r a)
 
 renderSetPoint2D::Vector (WPoint Point2D) -> Diagram SVG R2
-renderSetPoint2D ps = Vec.foldl' (\acc x -> acc <> renderCircle (point x) (weigth x) (red `withOpacity` 0.15)) mempty ps
+renderSetPoint2D ps = Vec.foldl' (\acc x -> acc <> renderCircle (point x) (weight x) (red `withOpacity` 0.15)) mempty ps
 
 v2r (Vec2 x y) = r2 (x,y)
 

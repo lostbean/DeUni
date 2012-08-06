@@ -40,7 +40,7 @@ type Point2D         = Vec2
 type PointPointer    = Int
 
 data WPoint p = WPoint
-              { weigth :: Double
+              { weight :: Double
               , point  :: p
               } deriving (Show,Eq)
                        

@@ -13,7 +13,7 @@ getCircumCircle::WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> (Double, 
 getCircumCircle a b c = (radius, center) 
   where
     (_, center) = getFaceDistCenter a b c
-    radius      = (normsqr $ point a &- center) - weigth a
+    radius      = (normsqr $ point a &- center) - weight a
   
 getFaceDistCenter::WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> (Double, Vec2)
 getFaceDistCenter a b c = let
@@ -39,7 +39,7 @@ getM a b c = Mat2 (point b &- point a) (point c &- point a)
 
 getAlpha :: WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> Vec2
 getAlpha a b c = Vec2 (fun b a) (fun c a)
-  where fun x y = (normsqr.point) x - (normsqr.point) y - weigth x + weigth y
+  where fun x y = (normsqr.point) x - (normsqr.point) y - weight x + weight y
 
 solveMu::Vec2 -> Mat2 -> (Double,Double)
 solveMu a r@(Mat2 r1 r2) = (mux, muy)
