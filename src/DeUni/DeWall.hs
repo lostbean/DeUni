@@ -27,9 +27,17 @@
 
 module DeUni.DeWall
 ( runHull3D
+, runDelaunay
 , runDelaunay3D
 , runDelaunay2D
 , reRun
+, SetSimplex2D
+, SetSimplex3D
+, SetFace3D
+, module DeUni.Types
+, module DeUni.Dim2.Base2D
+, module DeUni.Dim3.Base3D
+, module DeUni.GeometricTools
 ) where
 
 
@@ -48,10 +56,13 @@ import Hammer.Math.Vector
 
 import DeUni.Types
 import DeUni.GeometricTools
+
 import DeUni.Dim3.Delaunay3D
 import DeUni.Dim3.Hull3D
 import DeUni.Dim3.Base3D
+
 import DeUni.Dim2.Delaunay2D
+import DeUni.Dim2.Base2D 
 
 
 type SetSimplex2D = IntMap (S2 Point2D)
@@ -68,19 +79,24 @@ reRun st box sP ps faces = runState (mbc ps faces box []) init
     init = st { aflAlpha=S.empty, aflBox1=S.empty, aflBox2=S.empty, setPoint=sP }
 
 runHull3D::Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetFace3D, StateVarsMBC S1 Point3D)
-runHull3D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S1 Point3D) box []) init
-  where
-    init = initState sP
-
+runHull3D box sP ps = let
+  init = initState sP
+  in runState (mbc ps (S.empty::SetActiveSubUnits S1 Point3D) box []) init
+  
 runDelaunay3D::Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetSimplex3D, StateVarsMBC S2 Point3D)
-runDelaunay3D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S2 Point3D) box []) init
-  where
-    init = initState sP
-
+runDelaunay3D box sP ps = let
+  init = initState sP
+  in runState (mbc ps (S.empty::SetActiveSubUnits S2 Point3D) box []) init
+     
 runDelaunay2D::Box Point2D -> SetPoint Point2D -> [PointPointer] -> (SetSimplex2D, StateVarsMBC S2 Point2D)
-runDelaunay2D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S2 Point2D) box []) init
-  where
-    init = initState sP
+runDelaunay2D box sP ps = let
+  init = initState sP
+  in runState (mbc ps (S.empty::SetActiveSubUnits S2 Point2D) box []) init
+
+runDelaunay::(Buildable S2 a)=> Box a -> SetPoint a -> [PointPointer] -> (IntMap (S2 a), StateVarsMBC S2 a)
+runDelaunay box sP ps = let
+  init = initState sP
+  in runState (mbc ps S.empty box []) init
 
 initState sP = StateVarsMBC
   { aflAlpha      = S.empty
