@@ -26,6 +26,10 @@ projAonB a b = b &* ((a &. b) / (b &. b))
 normalofAtoB::(Vector a, DotProd a) => a -> a -> a
 normalofAtoB a b = normalize $ a &- (projAonB a b)
 
+-- | retrieve the radius of a weigthed point
+radius :: (PointND a) => WPoint a -> Double
+radius = sqrt . weight
+
 powerDist :: (PointND a) => WPoint a -> WPoint a -> Double
 powerDist a b = (normsqr $ point a &- point b) - weight a - weight b
 
