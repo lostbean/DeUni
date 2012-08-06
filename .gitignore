@@ -1,5 +1,7 @@
+.gitignore
 /cabal-dev*
 /dist
+sources.txt
 
 # Compiled source #
 ###################
