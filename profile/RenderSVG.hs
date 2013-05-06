@@ -3,26 +3,26 @@
 
 module RenderSVG where
 
-import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString.Lazy     as BS
 import qualified Blaze.ByteString.Builder as B
+import qualified Data.Vector              as Vec
+import qualified Data.List                as L
+import qualified Data.IntMap              as IM
+import qualified Data.Map                 as Map
+import qualified Data.Set                 as S
+  
 import Text.Blaze.Svg.Renderer.Utf8 (renderSvg)
-
-import qualified Data.Vector as Vec
-import qualified Data.List as L
 import Data.Vector (Vector)
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as S
+import Data.Map    (Map)
+import Data.Set    (Set)
 import Data.Colour (AlphaColour,withOpacity)
 
 import Diagrams.Prelude hiding (width, height, interval)
 import Diagrams.Backend.SVG
 
 import DeUni.DeWall
-import Hammer.Math.Vector hiding (Vector)
+import Hammer.Math.Algebra
 
 
 sizeSpec (width, height) = case (width, height) of
@@ -33,10 +33,10 @@ sizeSpec (width, height) = case (width, height) of
 
 renderSVG :: String -> SizeSpec2D -> Diagram SVG R2 -> IO ()
 renderSVG fileName sizeSpec dia = let
-  build = renderDia SVG (SVGOptions fileName sizeSpec) dia
+  build = renderDia SVG (SVGOptions sizeSpec) dia
   in BS.writeFile fileName (renderSvg build)
                       
-closeUpOnBox::Box Point2D -> Diagram SVG R2 -> Diagram SVG R2
+closeUpOnBox :: Box Point2D -> Diagram SVG R2 -> Diagram SVG R2
 closeUpOnBox Box2D{..} = let
   r = r2 (xMax2D - xMin2D, yMax2D - yMin2D)
   p = p2 (xMin2D, yMin2D)

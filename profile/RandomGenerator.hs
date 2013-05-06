@@ -1,4 +1,3 @@
-
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -23,8 +22,7 @@ import Data.Random.RVar
 import Data.Random.Source.StdGen
 import System.Random.Mersenne.Pure64
 
-import qualified Hammer.Math.Vector as AlgLin
-import Hammer.Math.Vector hiding (Vector)
+import Hammer.Math.Algebra
 import DeUni.Types
 import DeUni.Dim3.Base3D
 import DeUni.Dim2.Base2D
@@ -34,7 +32,7 @@ data DistributedPoints a =
   DistributedPoints { box      ::Box a
                     , setPoint ::SetPoint a }
 
-class (AlgLin.Vector v, AlgLin.Pointwise v)=> GenRandom v where
+class (MultiVec v, Pointwise v)=> GenRandom v where
   type Ratio v                   :: *
   calcBoxSize                    :: Double -> Ratio v -> Box v
   boxDim                         :: Box v -> v
@@ -88,7 +86,8 @@ instance GenRandom Point3D where
     return $ Vec3 a b c
 
 
-genFullRandomGrainDistribution::(GenRandom v)=> IORef PureMT -> Int -> Double -> RVar Double -> Ratio v -> IO (DistributedPoints v)
+genFullRandomGrainDistribution :: (GenRandom v)=> IORef PureMT -> Int -> Double
+                               -> RVar Double -> Ratio v -> IO (DistributedPoints v)
 genFullRandomGrainDistribution gen targetNGrains avgVolume dist ratio = 
   let
     totalVolume = avgVolume*(fromIntegral targetNGrains)
@@ -101,10 +100,10 @@ genFullRandomGrainDistribution gen targetNGrains avgVolume dist ratio =
     in replicateM targetNGrains getPoint >>= return.(DistributedPoints box).fromList
 
 
-genGrainSize::IORef PureMT -> RVar Double -> IO Double
+genGrainSize :: IORef PureMT -> RVar Double -> IO Double
 genGrainSize gen f = sampleFrom gen f
 
-getRandomGen::Maybe Int -> IO (IORef PureMT)
+getRandomGen :: Maybe Int -> IO (IORef PureMT)
 getRandomGen x = case x of
     Nothing -> newPureMT >>= newIORef
     (Just seed) ->  (return $ pureMT (fromIntegral seed)) >>= newIORef

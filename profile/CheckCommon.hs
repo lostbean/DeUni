@@ -1,33 +1,20 @@
------------------------------------------------------------------------------
---
--- Module      :  DeUniChecker
--- Copyright   :
--- License     :  AllRightsReserved
---
--- Maintainer  :
--- Stability   :
--- Portability :
---
--- |
---
------------------------------------------------------------------------------
-
-
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module CheckCommon where
 
+import qualified Data.IntMap as IM
+import qualified Data.Set    as S
+import qualified Data.List   as L
+import qualified Data.Vector as Vec
+
+import Data.Vector (Vector)
+  
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
-import qualified Data.IntMap as IM
-import qualified Data.Set as S
-import qualified Data.List as L
-import qualified Data.Vector as Vec
-import Data.Vector (Vector)
 
-import Hammer.Math.Vector hiding (Vector)
+import Hammer.Math.Algebra
 
 import DeUni.DeWall
 import DeUni.Types
@@ -38,7 +25,12 @@ import DeUni.Dim2.ReTri2D
 import VTKRender
 
 runChecker =  do
-  let myArgs = Args {replay = Nothing, maxSuccess = 1000, maxDiscard = 5000, maxSize = 1000, chatty = True}
+  let myArgs = Args { replay = Nothing
+                    , maxSuccess = 1000
+                    , maxDiscardRatio = 5
+                    , maxSize = 1000
+                    , chatty = True }
+
   print "Testing Projection.."    
   quickCheckWith myArgs prop_Projection
   
@@ -77,14 +69,15 @@ error_precisson = (10e-4)
 
 msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
     
-
+testIM :: (a -> Gen Prop) -> IM.IntMap a -> Gen Prop
 testIM test map
   | IM.null map = err
-  | otherwise  = let (x, xs) = IM.deleteFindMin map
-                 in IM.fold (\a b -> b .&&. test a) (test x) xs
+  | otherwise   = let (x, xs) = IM.deleteFindMin map
+                  in IM.fold (\a acc -> acc .&&. test a) (test $ snd x) xs
   where
-    err          = msgFail "empty output" False
+    err = msgFail "empty output" False
 
+testSet :: (a -> Gen Prop) -> S.Set a -> Gen Prop
 testSet test set
   | S.null set = err
   | otherwise  = let (x, xs) = S.deleteFindMin set
@@ -110,8 +103,7 @@ prop_QR a = testQ .&&. testQR
 
 prop_Projection::Point3D -> Point3D -> Property
 prop_Projection a b = msgFail "bad projection" $ c &. b < error_precisson
-  where
-    c = normalofAtoB a b 
+  where c = normalofAtoB a b 
     
 
 prop_partition::Box Point3D -> SetPoint Point3D -> Property

@@ -9,11 +9,10 @@ module VTKRender
        ( writeVTKfile
        ) where
 
-import qualified Data.Vector as Vec
+import qualified Data.Vector.Unboxed as VU
 
-import Hammer.Math.Vector
+import Hammer.Math.Algebra
 import Hammer.Render.VTK.VTKRender
-import Hammer.Render.VTK.Base
 
 import DeUni.Types
 import DeUni.Dim3.Base3D
@@ -22,24 +21,25 @@ import DeUni.Dim2.Delaunay2D
 import DeUni.Dim3.Delaunay3D
 import DeUni.Dim3.Hull3D
 
-writeVTKfile file ps cs = writeUniVTKfile (text2Path file) $ mkUGVTK "RegularTriangulation" ps cs
+writeVTKfile file ps cs = writeUniVTKfile file $
+                          mkUGVTK "RegularTriangulation" ps cs
 
 type PointPointer = Int
 
 instance RenderCell (S1 Point3D) where
-  makeCell cell = let (a,b,c) = face3DPoints cell in Vec.fromList [a,b,c]
+  makeCell cell = let (a,b,c) = face3DPoints cell in VU.fromList [a,b,c]
   getType _ = VTK_TRIANGLE
 
 instance RenderCell (S2 Point3D) where
-  makeCell cell = let (a,b,c,d) = tetraPoints cell in Vec.fromList [a,b,c,d]
+  makeCell cell = let (a,b,c,d) = tetraPoints cell in VU.fromList [a,b,c,d]
   getType _ = VTK_TETRA
               
 instance RenderCell (S2 Point2D) where
-  makeCell cell = let (a,b,c) = face2DPoints cell in Vec.fromList [a,b,c]
+  makeCell cell = let (a,b,c) = face2DPoints cell in VU.fromList [a,b,c]
   getType _ = VTK_TRIANGLE
 
-instance (RenderPoint a) => RenderPoint (WPoint a) where
-  renderPoint = renderPoint . point
+--instance (RenderElemVTK a) => RenderElemVTK (WPoint a) where
+--  renderPoint = renderPoint . point
 
 
 

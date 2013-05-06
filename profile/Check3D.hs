@@ -1,37 +1,24 @@
------------------------------------------------------------------------------
---
--- Module      :  DeUniChecker
--- Copyright   :
--- License     :  AllRightsReserved
---
--- Maintainer  :
--- Stability   :
--- Portability :
---
--- |
---
------------------------------------------------------------------------------
-
-
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module Check3D where
 
+import qualified Data.IntMap as IM
+import qualified Data.Map    as Map
+import qualified Data.Set    as S
+import qualified Data.List   as L
+import qualified Data.Vector as Vec
+
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
-import Data.Maybe (isJust)
-import Data.IntMap (IntMap)
-import Data.Set (Set)
-import Data.Vector (Vector, (!))
-import qualified Data.IntMap as IM
-import qualified Data.Map as Map
-import qualified Data.Set as S
-import qualified Data.List as L
-import qualified Data.Vector as Vec
 
-import Hammer.Math.Vector hiding (Vector)
+import Data.Maybe  (isJust)
+import Data.IntMap (IntMap)
+import Data.Set    (Set)
+import Data.Vector (Vector, (!))
+
+import Hammer.Math.Algebra
 
 import DeUni.DeWall
 import DeUni.Types
@@ -45,7 +32,11 @@ import DeUni.Dim3.ReTri3D
 import VTKRender
 
 runChecker =  do
-  let myArgs = Args {replay = Nothing, maxSuccess = 1000, maxDiscard = 5000, maxSize = 1000, chatty = True}
+  let myArgs = Args { replay = Nothing
+                    , maxSuccess = 1000
+                    , maxDiscardRatio = 1
+                    , maxSize = 1000
+                    , chatty = True }
   
   print "Testing 1st face.."    
   quickCheckWith myArgs prop_1stFace
@@ -104,7 +95,10 @@ instance Arbitrary (Vector (WPoint Point3D)) where
 error_precisson = (10e-2)
 
 msgFail text  = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
-plotFail file sp obj = whenFail (writeVTKfile file sp obj)
+
+plotFail file sp obj = let
+  ps = Vec.convert $ Vec.map point sp
+  in whenFail (writeVTKfile file ps obj)
 
 prop_ConvHull::Box Point3D -> SetPoint Point3D -> Property
 prop_ConvHull box sp = (length ps) > 4 ==> plotFail "Hull3D_err.vtu" sp hull fulltest
@@ -137,7 +131,7 @@ prop_Delaunay box sp = (length ps) > 4 ==> plotFail "Delaunay3D_err.vtu" sp wall
 testIM test map
   | IM.null map = err
   | otherwise  = let (x, xs) = IM.deleteFindMin map
-                 in IM.fold (\a b -> b .&&. test a) (test x) xs
+                 in IM.fold (\a b -> b .&&. test a) (test $ snd x) xs
   where
     err          = msgFail "empty output" False
 

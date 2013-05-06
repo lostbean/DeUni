@@ -1,39 +1,26 @@
------------------------------------------------------------------------------
---
--- Module      :  DeUniChecker
--- Copyright   :
--- License     :  AllRightsReserved
---
--- Maintainer  :
--- Stability   :
--- Portability :
---
--- |
---
------------------------------------------------------------------------------
-
-
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module Check2D where
 
+import qualified Data.IntMap as IM
+import qualified Data.Map    as Map
+import qualified Data.Set    as S
+import qualified Data.List   as L
+import qualified Data.Vector as Vec
+
+import Data.Monoid ((<>))
+import Data.Maybe  (isJust)
+import Data.IntMap (IntMap)
+import Data.Set    (Set)
+import Data.Map    (Map)
+import Data.Vector (Vector, (!))
+
 import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
-import Data.Monoid ((<>))
-import Data.Maybe (isJust)
-import Data.IntMap (IntMap)
-import Data.Set (Set)
-import Data.Map (Map)
-import qualified Data.IntMap as IM
-import qualified Data.Map as Map
-import qualified Data.Set as S
-import qualified Data.List as L
-import qualified Data.Vector as Vec
-import Data.Vector (Vector, (!))
 
-import Hammer.Math.Vector hiding (Vector)
+import Hammer.Math.Algebra
 
 import DeUni.DeWall
 import DeUni.Types
@@ -47,7 +34,12 @@ import RenderSVG
 
 
 runChecker =  do
-  let myArgs = Args {replay = Nothing, maxSuccess = 1000, maxDiscard = 500, maxSize = 1000, chatty = True}
+  let myArgs = Args { replay = Nothing
+                    , maxSuccess = 1000
+                    , maxDiscardRatio = 1
+                    , maxSize = 1000
+                    , chatty = True }
+               
   print "Testing 1st edge.."    
   quickCheckWith myArgs prop_1stEdge
   
@@ -142,7 +134,7 @@ prop_Delaunay box sp = (length ps) > 4 ==> whenFail (log) fulltest
 testIM test map
   | IM.null map = err
   | otherwise   = let (x, xs) = IM.deleteFindMin map
-                  in IM.fold (\a b -> b .&&. test a) (test x) xs
+                  in IM.fold (\a b -> b .&&. test a) (test $ snd x) xs
   where
     err          = msgFail "empty output" False
 
