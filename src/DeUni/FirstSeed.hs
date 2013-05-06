@@ -1,26 +1,21 @@
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| First Face |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 module DeUni.FirstSeed (getFirstEdge) where
 
 import Prelude hiding (null, lookup)
-import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
-import Data.Vector ((!))
-import qualified Data.List as L
-import Control.Applicative ((<$>))
-import Data.Maybe
+import Data.List      (foldl', minimumBy, maximumBy)
+import Data.Vector    ((!))
 
-import Hammer.Math.Vector
+import Hammer.Math.Algebra
 
 import DeUni.GeometricTools
 import DeUni.Types
+
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| First Face |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -- | Finds the first valid edge (a,b) across the division plane alpha laying
 -- on the convex hull. The is a base to construct either the fist valid regular 
 -- triangulation or the first face of the convex hull. Functons are generics and
 -- the algorithm works for 2D and 3D, but no attempt was made for higher dimensions.
-getFirstEdge::(PointND a)=> Plane a -> SetPoint a -> [PointPointer] -> [PointPointer] -> Maybe (PointPointer, PointPointer)
+getFirstEdge :: (PointND a)=> Plane a -> SetPoint a -> [PointPointer] -> [PointPointer] -> Maybe (PointPointer, PointPointer)
 getFirstEdge divPlane sP ps1 ps2 = do
   (p1, d1) <- getMaxDistPoint divPlane sP ps1
   (p2, d2) <- getMaxDistPoint divPlane sP ps2
@@ -36,24 +31,24 @@ getFirstEdge divPlane sP ps1 ps2 = do
 
 -- | Finds the point which lays on the most distant (from origin) plane perpendicular
 -- to the division plane.
-getMaxDistPoint::(PointND a)=> Plane a -> SetPoint a -> [PointPointer] -> Maybe (PointPointer, Double)
+getMaxDistPoint :: (PointND a)=> Plane a -> SetPoint a -> [PointPointer] -> Maybe (PointPointer, Double)
 getMaxDistPoint _ _ []         = Nothing
-getMaxDistPoint divPlane sP (x:xs) = Just $ foldl' func d1 xs
+getMaxDistPoint divPlane sP (i:is) = Just $ foldl' func d1 is
   where
-    d1     = (x, dist x)
-    dist x = norm $ getProjOnPlane divPlane (sP!.x)
+    d1   = (i, dist i)
+    dist = norm . getProjOnPlane divPlane . (sP !.)
     func old x
       | d > (snd old) = (x, d)
       | otherwise     = old
       where d = dist x
               
 -- | Finds the most distant point along the direction refdir.
-getMaxDistPointOnDir::(PointND a)=> a -> SetPoint a -> [PointPointer] -> Maybe (PointPointer, Double)
+getMaxDistPointOnDir ::(PointND a)=> a -> SetPoint a -> [PointPointer] -> Maybe (PointPointer, Double) 
 getMaxDistPointOnDir _      _  []     = Nothing
-getMaxDistPointOnDir refdir sP (x:xs) = Just $ foldl' func d1 xs
+getMaxDistPointOnDir refdir sP (i:is) = Just $ foldl' func d1 is
   where
-    d1       = (x, dist x)
-    dist x   = norm $ projAonB (sP!.x) refdir
+    d1       = (i, dist i)
+    dist x   = norm $ projAonB (sP !. x) refdir
     func old x
         | d > (snd old) = (x, d)
         | otherwise     = old
@@ -61,11 +56,12 @@ getMaxDistPointOnDir refdir sP (x:xs) = Just $ foldl' func d1 xs
 
 -- | Given two initial points, it climbs outward the set of points using the touchPlane function (the plane which conteins
 -- the two points and the direction perpenicular to refdir and conteined on the divison plane)
-climber::(PointND a)=> a -> Plane a -> SetPoint a -> PointPointer -> PointPointer -> [PointPointer] -> [PointPointer] -> Maybe (PointPointer, PointPointer)
-climber refdir divPlane sP p1 p2 ps1 ps2 = goTop p1 p2
+climber :: (PointND a)=> a -> Plane a -> SetPoint a -> PointPointer -> PointPointer
+        -> [PointPointer] -> [PointPointer] -> Maybe (PointPointer, PointPointer)
+climber refdir divPlane sP pi1 pi2 ps1 ps2 = goTop pi1 pi2
   where
     goTop p1 p2 = do
-      facePlane <- touchPlane refdir divPlane (sP!.p1) (sP!.p2)
+      facePlane <- touchPlane refdir divPlane (sP !. p1) (sP !. p2)
       let
         getPP     = pointSetPartition (whichSideOfPlane facePlane) sP . cleanedPS
         cleanedPS = filter (\x -> x /= p1 && x /= p2)
@@ -81,9 +77,9 @@ climber refdir divPlane sP p1 p2 ps1 ps2 = goTop p1 p2
         onPlane_2 = pointsOnPlane pp2
         
         -- move touchPlane futher out
-        moveUp p1 p2 = let
-          n1 = nextP p1 ps1
-          n2 = nextP p2 ps2
+        moveUp pa pb = let
+          n1 = nextP pa ps1
+          n2 = nextP pb ps2
           in goTop n1 n2
             
         -- get the closest point to p
@@ -101,14 +97,14 @@ climber refdir divPlane sP p1 p2 ps1 ps2 = goTop p1 p2
         -- get the farest point in the outward direction
         nextP p ps
           | mvdir > 0 = getFarest p (filter (\x -> faceDist x > 0 && x /= p) ps)
-          | mvdir < 0 = getFarest p (filter (\x -> faceDist x < 0 && x /= p) ps)
+          | otherwise = getFarest p (filter (\x -> faceDist x < 0 && x /= p) ps)
 
         -- find move direction of facePlane (outwards the set of points)
         mvdir = (planeNormal facePlane) &. (getProjOnPlane divPlane refdir)
 
         -- get the farest point from facePlane
         getFarest p [] = p
-        getFarest p ps = maximumBy (\a b -> faceDist a `compare` faceDist b) ps
+        getFarest _ ps = maximumBy (\a b -> faceDist a `compare` faceDist b) ps
 
         faceDist x =  (sP!.x &- sP!.p1) &. (planeNormal facePlane)
 

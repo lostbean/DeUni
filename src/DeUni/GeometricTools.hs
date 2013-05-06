@@ -6,12 +6,9 @@
 module DeUni.GeometricTools where
 
 import Prelude hiding (null, lookup)
-import Control.Applicative ((<$>))
-import Control.Monad.State.Lazy
 import Data.List (foldl')
-import Data.Maybe
 
-import Hammer.Math.Vector
+import Hammer.Math.Algebra
 
 import DeUni.Types
 
@@ -19,11 +16,11 @@ truncation::Double
 truncation = 1e-10
 
 -- | Projection A on B = B * (A°B)/(B°B)
-projAonB::(Vector a, DotProd a) => a -> a -> a
+projAonB::(MultiVec a, DotProd a) => a -> a -> a
 projAonB a b = b &* ((a &. b) / (b &. b))
 
 -- | Normal component of A to B
-normalofAtoB::(Vector a, DotProd a) => a -> a -> a
+normalofAtoB::(MultiVec a, DotProd a) => a -> a -> a
 normalofAtoB a b = normalize $ a &- (projAonB a b)
 
 -- | retrieve the radius of a weigthed point
@@ -113,26 +110,26 @@ facePos pairBox sP a b c = case (findPos $ sP!.a, findPos $ sP!.b, findPos $ sP!
 
 -- | Performance can be improve by removing the duplicate call to "func" in "dropZero"
 -- and the first "(func x, x)"
-findMinimunButZero::(PointND a)=>(PointPointer -> Double) -> SetPoint a -> [PointPointer] -> Maybe (Double, PointPointer)
-findMinimunButZero func sP ps = let
+findMinimunButZero :: (PointPointer -> Double) -> [PointPointer] -> Maybe (Double, PointPointer)
+findMinimunButZero func ps = let
   ds     = map dist ps
   dist i = Just (func i, i)
   
   foldMaybe Nothing old = old
-  foldMaybe new@(Just (dist, i)) old = case old of
-    Just (olddist, oldi)
-      | dist == 0      -> old
-      | dist > olddist -> old
-      | dist < olddist -> new
-      | otherwise      -> error $ "Multiple points on circle or sphere! " ++ show new
+  foldMaybe new@(Just (d, _)) old = case old of
+    Just (olddist, _)
+      | d == 0      -> old
+      | d > olddist -> old
+      | d < olddist -> new
+      | otherwise   -> error $ "Multiple points on circle or sphere! " ++ show new
     Nothing -> new
 
   in foldl' foldMaybe Nothing ds
      
 -- | Performance can be improve by removing the duplicate call to "func" in "dropZero"
 -- and the first "(func x, x)"
-findMinimunButZero'::(PointND a)=>(PointPointer -> Maybe Double) -> SetPoint a -> [PointPointer] -> Maybe (Double, PointPointer)
-findMinimunButZero' func sP ps = let
+findMinimunButZero' :: (PointPointer -> Maybe Double) -> [PointPointer] -> Maybe (Double, PointPointer)
+findMinimunButZero' func ps = let
   ds = map dist ps
   
   dist i = case func i of
@@ -140,12 +137,12 @@ findMinimunButZero' func sP ps = let
     _      -> Nothing
   
   foldMaybe Nothing old = old
-  foldMaybe new@(Just (dist, i)) old = case old of
-    Just (olddist, oldi)
-      | dist == 0      -> old
-      | dist > olddist -> old
-      | dist < olddist -> new
-      | otherwise      -> error $ "Multiple points on circle or sphere! " ++ show new
+  foldMaybe new@(Just (d, _)) old = case old of
+    Just (olddist, _)
+      | d == 0      -> old
+      | d > olddist -> old
+      | d < olddist -> new
+      | otherwise   -> error $ "Multiple points on circle or sphere! " ++ show new
     Nothing -> new
 
   in foldl' foldMaybe Nothing ds

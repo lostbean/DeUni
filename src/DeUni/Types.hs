@@ -1,7 +1,3 @@
--- >>>>>>>>>>> Type definitions <<<<<<<<<<<<<<<<<<<
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE OverlappingInstances #-}
@@ -16,24 +12,24 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 
+-- | Type definitions
 module DeUni.Types where
 
 import Prelude
-import Data.Set (Set)
-import Data.IntMap (IntMap)
-import Data.Maybe (Maybe)
-import Data.Vector (Vector,(!))
+import Data.Set                 (Set)
+import Data.Vector              (Vector, (!))
 import Control.Monad.State.Lazy (State)
 
-import qualified Hammer.Math.Vector as HVec
-import Hammer.Math.Vector hiding (Vector)
+import Hammer.Math.Algebra
 
 
-import Debug.Trace
-debug :: Show a => String -> a -> a
-debug s x = trace (s ++ show x) x
+--import Debug.Trace
+--debug :: Show a => String -> a -> a
+--debug s x = trace (s ++ show x) x
 
 
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            
 -- | Define a point in 2D and 3D
 type Point3D         = Vec3
 type Point2D         = Vec2
@@ -60,7 +56,7 @@ instance (PointND a) => Eq (S1 a) where
   x == y = compS1 x y == EQ
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- Instances for edge
+compEdge :: (Ord a)=> a -> a -> a -> a -> Ordering
 compEdge a1 a2 b1 b2
   | amax > bmax = GT
   | amax < bmax = LT
@@ -75,19 +71,22 @@ compEdge a1 a2 b1 b2
     eUp  x y = if compare x y == GT then x else y
     eBot x y = if compare x y == GT then y else x
 
+compFace :: (Ord a)=> (a, a, a) -> (a, a, a) -> Ordering
 compFace a b = compare a' b'
   where
     a' = fast3DSort a
     b' = fast3DSort b
-    fast3DSort face@(a, b, c)
-      | (a >= b) && (b >= c) = face
-      | otherwise = (a', b', c')
-        where
-          minab = min a b
-          maxab = max a b
-          a'    = max (maxab) c
-          b'    = max (min (maxab) c) (minab)
-          c'    = min (minab) c
+
+fast3DSort :: (Ord a)=> (a, a, a) -> (a, a, a)
+fast3DSort face@(a, b, c)
+  | (a >= b) && (b >= c) = face
+  | otherwise            = (a', b', c')
+  where
+    minab = min a b
+    maxab = max a b
+    a'    = max (maxab) c
+    b'    = max (min (maxab) c) (minab)
+    c'    = min (minab) c
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- ActiveSubUnit
@@ -162,7 +161,7 @@ class (PointND dim) => Buildable simplex dim where
   subUnitPos        :: BoxPair dim -> SetPoint dim -> ActiveSubUnit simplex dim -> Position
 
 
-class (HVec.Vector p, DotProd p, Show p) => PointND p where
+class (MultiVec p, DotProd p, Show p) => PointND p where
   data Box p   :: *
   data Plane p :: *
   data S0 p    :: *

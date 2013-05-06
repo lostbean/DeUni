@@ -1,21 +1,20 @@
 module DeUni.Dim3.ReTri3D where
 
-import Hammer.Math.Vector
+import Hammer.Math.Algebra
 
 import DeUni.Types
-
 
 
 -- | Based on the papers: "Parallel dynamic and kinetic regular triangulation in three dimensions" (1993) and 
 -- "A data-parallel algorithm for three-dimensional Delaunay triangulation and its implementation" (2005)
 
-getCircumSphere::WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> (Double, Vec3)
+getCircumSphere :: WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> (Double, Vec3)
 getCircumSphere a b c d = (radius, center) 
   where
-    (dist, center) = getFaceDistCenter a b c d
-    radius         = (normsqr $ point a &- center) - weight a
+    (_, center) = getFaceDistCenter a b c d
+    radius      = (normsqr $ point a &- center) - weight a
   
-getFaceDistCenter::WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> (Double, Vec3)  
+getFaceDistCenter :: WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> (Double, Vec3)  
 getFaceDistCenter a b c d = (signDist, center)
   where
     center          = (-0.5) *& ((mux *& q1) &+ ( muy *& q2) &+ (muz *& q3))
@@ -33,32 +32,33 @@ getAlpha :: WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D
 getAlpha a b c d = Vec3 (fun b a) (fun c a) (fun d a)
   where fun x y = (normsqr.point) x - (normsqr.point) y - weight x + weight y
 
-solveMu::Vec3 -> Mat3 -> (Double,Double,Double)
-solveMu a r@(Mat3 r1 r2 r3) = (mux, muy, muz)
+solveMu :: Vec3 -> Mat3 -> (Double,Double,Double)
+solveMu a (Mat3 r1 r2 r3) = (mux, muy, muz)
   where
-    (ax, ay, az)    = unvec3 a
-    (r11, r21, r31) = unvec3 r1
-    (r12, r22, r32) = unvec3 r2
+    (ax, ay, az)  = unvec3 a
+    (r11, _,   _) = unvec3 r1
+    (r12, r22, _) = unvec3 r2
     (r13, r23, r33) = unvec3 r3
     mux = ax / r11
     muy = (ay - mux*r12) / r22
     muz = (az - mux*r13 - muy* r23) / r33        
 
-signRDet::Mat3 -> Bool
+signRDet :: Mat3 -> Bool
 signRDet (Mat3 r1 r2 r3) = r11 * r22 * r33 >= 0
   where
-    (r11, r21, r31) = unvec3 r1
-    (r12, r22, r32) = unvec3 r2
-    (r13, r23, r33) = unvec3 r3
+    (r11, _, _) = unvec3 r1
+    (_, r22, _) = unvec3 r2
+    (_, _, r33) = unvec3 r3
 
-unvec3 (Vec3 a b c) = (a,b,c)
+unvec3 :: Vec3 -> (Double, Double, Double)
+unvec3 (Vec3 a b c) = (a, b, c)
 
 
 -- | A Householder reflection (or Householder transformation) is a transformation that
 -- takes a vector and reflects it about some plane or hyperplane. We can use this operation
 -- to calculate the QR factorization of an m-by-n matrix A with m ≥ n.
 -- Q can be used to reflect a vector in such a way that all coordinates but one disappear.
-qrDecomp::Mat3 -> (Mat3,Mat3)
+qrDecomp :: Mat3 -> (Mat3,Mat3)
 qrDecomp m = (q, r)
   where
     x1 = _1 m

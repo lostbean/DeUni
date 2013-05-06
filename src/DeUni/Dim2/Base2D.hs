@@ -1,4 +1,3 @@
-
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE OverlappingInstances #-}
@@ -14,16 +13,10 @@
 
 module DeUni.Dim2.Base2D where
 
-import Control.Applicative ((<$>))
-import Control.Monad.State.Lazy
-import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
-import qualified Data.List as L
+import Hammer.Math.Algebra
 
-import Hammer.Math.Vector
-
-import DeUni.GeometricTools
 import DeUni.Types
-import DeUni.FirstSeed
+
 
 instance PointND Point2D where
   data Box Point2D     = Box2D
@@ -53,7 +46,7 @@ instance PointND Point2D where
     , circleCenter :: Point2D
     } deriving (Show)  
   
-  compS0 a b = undefined
+  compS0 _ _ = error "[DeUni] 2D S0 comparison not defined."
 
   compS1 a b = compEdge (edge2DL a) (edge2DR a) (edge2DL b) (edge2DR b)
   
@@ -61,15 +54,15 @@ instance PointND Point2D where
   
   circumRadius = circleRadius
     
-  isInBox box (Vec2 x y) = let 
-    between min max x
-      --will get points on the edge of the box and store if P1 those are on the commun face
-      | min < max = (x >= min) && (max >= x)
-      | min > max = (x <= min) && (max <= x)
+  isInBox box (Vec2 x y) = let
+    between minV maxV v
+      -- will get points on the edge of the box and store if P1
+      -- those are on the commun face
+      | minV < maxV = (v >= minV) && (maxV >= v)
+      | minV > maxV = (v <= minV) && (maxV <= v)
       | otherwise = error ("Zero size box: " ++ show (box))
-    in between (xMin2D box) (xMax2D box) x
-    && between (yMin2D box) (yMax2D box) y
-
+    in between (xMin2D box) (xMax2D box) x &&
+       between (yMin2D box) (yMax2D box) y
 
   planeNormal = plane2DNormal
   planeDist   = plane2DDist
@@ -80,10 +73,10 @@ instance PointND Point2D where
     b = edge2DR edge
     in plane2D (sp!.a) (sp!.b)
 
-  touchPlane refdir divPlane = plane2D
+  touchPlane _ _ = plane2D
   
   cutBox box subB
-    | null subB  = smartBox box box
+    | null subB = smartBox box box
     | otherwise = func box subB
     where
       func sub [] = smartBox box sub
@@ -91,32 +84,35 @@ instance PointND Point2D where
         B1 -> func (halfBox1.snd $ smartBox sub sub) ps
         B2 -> func (halfBox2.snd $ smartBox sub sub) ps
         _  -> func sub ps
-      smartBox box subbox@Box2D{..}
-        | deltaX >= deltaY = (Plane2D (Vec2 1 0) halfX, cutX)
-        | otherwise        = (Plane2D (Vec2 0 1) halfY, cutY)
-        where
-          cutX = BoxPair box { xMax2D = halfX } box { xMin2D = halfX }
-          cutY = BoxPair box { yMax2D = halfY } box { yMin2D = halfY }
-          deltaX = abs (xMax2D - xMin2D)
-          deltaY = abs (yMax2D - yMin2D)
-          halfX = (xMax2D + xMin2D)/2
-          halfY = (yMax2D + yMin2D)/2
-
 
 instance Show (BoxPair Point2D) where
   show b = show (halfBox1 b, halfBox2 b)
+
+smartBox :: Box Point2D -> Box Point2D -> (Plane Point2D, BoxPair Point2D)
+smartBox box Box2D{..}
+  | deltaX >= deltaY = (Plane2D (Vec2 1 0) halfX, cutX)
+  | otherwise        = (Plane2D (Vec2 0 1) halfY, cutY)
+  where
+    cutX = BoxPair box { xMax2D = halfX } box { xMin2D = halfX }
+    cutY = BoxPair box { yMax2D = halfY } box { yMin2D = halfY }
+    deltaX = abs (xMax2D - xMin2D)
+    deltaY = abs (yMax2D - yMin2D)
+    halfX = (xMax2D + xMin2D)/2
+    halfY = (yMax2D + yMin2D)/2
+
 
 plane2D::Vec2 -> Vec2 -> Maybe (Plane Point2D)
 plane2D a b
   | nSize == 0 = Nothing
   | d >= 0     = Just $ makePlane normN d
-  | d < 0      = Just $ makePlane (neg normN) (-d)
+  | otherwise  = Just $ makePlane (neg normN) (-d)
   where
     (Vec2 x y) = b &- a
-    n     = Vec2 (-y) x
+    n          = Vec2 (-y) x
     nSize = len n
-    -- Double normalization to avoid floating point operations errors in some computers
-    -- Critical in case of multiple points algined in a plane e.g. on a face of the box
+    -- Double normalization to avoid floating point operations
+    -- errors in some computers. Critical in case of multiple
+    -- points algined in a plane e.g. on a face of the box
     normN = (normalize . normalize) n
     d     = normN &. a
 

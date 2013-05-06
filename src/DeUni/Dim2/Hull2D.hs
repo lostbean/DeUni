@@ -16,7 +16,7 @@ import Control.Applicative ((<$>))
 import Data.Maybe
 import Data.Array.Diff hiding (elems)
 
-import Hammer.Math.Vector
+import Hammer.Math.Algebra
 
 import DeUni.GeometricTools
 import DeUni.Types

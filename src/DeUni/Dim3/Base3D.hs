@@ -1,4 +1,3 @@
-
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE OverlappingInstances #-}
@@ -14,16 +13,16 @@
 
 module DeUni.Dim3.Base3D where
 
-import Control.Applicative ((<$>), (<*>))
-import Control.Monad.State.Lazy
-import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
 import qualified Data.List as L
-import Data.Vector ((!))
-import Hammer.Math.Vector
+  
+import Control.Applicative  ((<$>))
+import Data.List            ((\\))
+import Data.Vector          ((!))
+  
+import Hammer.Math.Algebra
 
 import DeUni.GeometricTools
 import DeUni.Types
-import DeUni.FirstSeed
 import DeUni.Dim2.ReTri2D
 
 
@@ -66,10 +65,10 @@ instance PointND Point3D where
   circumRadius = circumSphereRadius  
   
   isInBox box (Vec3 x y z) = let 
-    between min max x
+    between minV maxV v
       --will get points on the edge of the box and store if P1 those are on the commun face
-      | min < max = (x >= min) && (max >= x)
-      | min > max = (x <= min) && (max <= x)
+      | minV < maxV = (v >= minV) && (maxV >= v)
+      | minV > maxV = (v <= minV) && (maxV <= v)
       | otherwise = error ("Zero size box: " ++ show (box))
     in between (xMin3D box) (xMax3D box) x
     && between (yMin3D box) (yMax3D box) y
@@ -83,7 +82,7 @@ instance PointND Point3D where
   calcPlane sp face
     | nSize == 0 = Nothing
     | d >= 0     = Just $ makePlane normN d
-    | d < 0      = Just $ makePlane (inv normN) (-d)
+    | otherwise  = Just $ makePlane (inv normN) (-d)
     where
       (a,b,c) = face3DPoints face
       n       = (sp!.b &- sp!.a) &^ (sp!.c &- sp!.a)
@@ -92,7 +91,7 @@ instance PointND Point3D where
       -- Critical in case of multiple points algined in a plane e.g. on a face of the box
       normN   = (normalize . normalize) n
       d       = normN &. (sp!.a)
-      inv n   = (-1) *& n
+      inv     = ((-1) *&)
 
   touchPlane refdir divPlane a b
     | nSize == 0 = Nothing
@@ -106,16 +105,16 @@ instance PointND Point3D where
       normND        = normalize nd
       d             = normND &. a
   
-  cutBox box subB
-    | null subB  = smartBox box box
-    | otherwise = func box subB
+  cutBox inBox subB
+    | null subB = smartBox inBox inBox
+    | otherwise = func     inBox subB
     where
-      func sub [] = smartBox box sub
+      func sub [] = smartBox inBox sub
       func sub (p:ps) = case p of
         B1 -> func (halfBox1.snd $ smartBox sub sub) ps
         B2 -> func (halfBox2.snd $ smartBox sub sub) ps
         _  -> func sub ps
-      smartBox box subbox@Box3D{..}
+      smartBox box Box3D{..}
         | (deltaX >= (max deltaY deltaZ)) = (Plane3D (Vec3 1 0 0) halfX, cutX)
         | (deltaY >= (max deltaX deltaZ)) = (Plane3D (Vec3 0 1 0) halfY, cutY)
         | otherwise                       = (Plane3D (Vec3 0 0 1) halfZ, cutZ)
@@ -133,7 +132,7 @@ instance PointND Point3D where
 
 getThrirdPoint :: (PointND Point3D) => SetPoint Point3D -> PointPointer -> PointPointer -> [PointPointer] -> Maybe (PointPointer, Point3D)
 getThrirdPoint sP pA pB ps = do
-  (x, i) <- findThird
+  (_, i) <- findThird
   getND i
   where
     cleanList x = ps \\ [pA, pB, x]
@@ -141,7 +140,7 @@ getThrirdPoint sP pA pB ps = do
     
     findThird = let
       dist = getSignDist sP pA pB
-      in findMinimunButZero' dist sP justHull
+      in findMinimunButZero' dist justHull
     
     isHull x
       | x == pA || x == pB = False
@@ -153,7 +152,6 @@ getThrirdPoint sP pA pB ps = do
             | (L.null.pointsOnB2) pp -> True
             | otherwise              -> False
             where pp = pointSetPartition (whichSideOfPlane plane) sP (cleanList x)
-                  nd = planeNormal plane
           Nothing                    -> False
     
     getND x = let
@@ -169,11 +167,11 @@ getThrirdPoint sP pA pB ps = do
 -- using axi-angle and Rodriges' equation.
 rotate::Point3D -> Point3D -> Point3D
 rotate nd x = let
-  v   = Vec3 0 0 1
-  w   = nd &^ v
-  cos = nd &. v
-  sin = sqrt (1 - cos * cos)
-  in x &* cos &+ (w &^ x) &* sin &+ w &* ((w &. x)*(1 - cos))
+  v    = Vec3 0 0 1
+  w    = nd &^ v
+  cosV = nd &. v
+  sinV = sqrt (1 - cosV * cosV)
+  in x &* cosV &+ (w &^ x) &* sinV &+ w &* ((w &. x)*(1 - cosV))
 
 -- | Get the signed distance from c to the center of the edge <a,b> which are circumscribed 
 -- by a circle.

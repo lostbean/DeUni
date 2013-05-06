@@ -1,21 +1,20 @@
 module DeUni.Dim2.ReTri2D where
 
-import Hammer.Math.Vector
+import Hammer.Math.Algebra
 
 import DeUni.Types
-import DeUni.Dim2.Base2D
 
 
 -- | Based on the papers: "Parallel dynamic and kinetic regular triangulation in three dimensions" (1993) and 
 -- "A data-parallel algorithm for three-dimensional Delaunay triangulation and its implementation" (2005)
 
-getCircumCircle::WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> (Double, Vec2)
+getCircumCircle :: WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> (Double, Vec2)
 getCircumCircle a b c = (radius, center) 
   where
     (_, center) = getFaceDistCenter a b c
     radius      = (normsqr $ point a &- center) - weight a
   
-getFaceDistCenter::WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> (Double, Vec2)
+getFaceDistCenter :: WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> (Double, Vec2)
 getFaceDistCenter a b c = let
     center       = (-0.5) *& ((mux *& q1) &+ ( muy *& q2))
     dist         = muy * 0.5 + (q2 &. point a)
@@ -41,11 +40,11 @@ getAlpha :: WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> Vec2
 getAlpha a b c = Vec2 (fun b a) (fun c a)
   where fun x y = (normsqr.point) x - (normsqr.point) y - weight x + weight y
 
-solveMu::Vec2 -> Mat2 -> (Double,Double)
-solveMu a r@(Mat2 r1 r2) = (mux, muy)
+solveMu :: Vec2 -> Mat2 -> (Double, Double)
+solveMu a (Mat2 r1 r2) = (mux, muy)
   where
     (ax, ay)   = unvec2 a
-    (r11, r21) = unvec2 r1
+    (r11, _) = unvec2 r1
     (r12, r22) = unvec2 r2
     mux = ax / r11
     muy = (ay - mux*r12) / r22
@@ -53,10 +52,11 @@ solveMu a r@(Mat2 r1 r2) = (mux, muy)
 signRDet::Mat2 -> Bool
 signRDet (Mat2 r1 r2) = r11 * r22 >= 0
   where
-    (r11, r21) = unvec2 r1
-    (r12, r22) = unvec2 r2
+    (r11, _) = unvec2 r1
+    (_, r22) = unvec2 r2
 
-unvec2 (Vec2 a b) = (a,b)
+unvec2 :: Vec2 -> (Double, Double)
+unvec2 (Vec2 a b) = (a, b)
 
 
 -- | A Householder reflection (or Householder transformation) is a transformation that
@@ -64,7 +64,7 @@ unvec2 (Vec2 a b) = (a,b)
 -- to calculate the QR factorization of an m-by-n matrix A with m ≥ n.
 -- Q can be used to reflect a vector in such a way that all coordinates but one disappear.
 -- "Stability of Householder QR Factorization for Weighted Least Squares Problems"
-qrDecomp::Mat2 -> (Mat2,Mat2)
+qrDecomp :: Mat2 -> (Mat2,Mat2)
 qrDecomp m = (q, r)
   where
     x  = _1 m
