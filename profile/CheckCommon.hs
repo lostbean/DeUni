@@ -37,9 +37,6 @@ runChecker =  do
   print "Testing Parttition.."    
   quickCheckWith myArgs prop_partition
   
-  print "Testing QR decomposition.."    
-  quickCheckWith myArgs prop_QR
-  
 
 instance Arbitrary (Box Point3D) where
   arbitrary = liftM2 getBox max min
@@ -85,27 +82,10 @@ testSet test set
   where
     err          = msgFail "empty output" False
 
-test_Mat2 a b = and bs
-  where
-    bs = map (\x -> abs x < error_precisson) [x11,x21,x12,x22]
-    (Mat2 (Vec2 x11 x21) (Vec2 x12 x22)) = a &- b
-    
-
-prop_QR::Mat2 -> Property
-prop_QR a = testQ .&&. testQR
-  where
-    testR  = msgFail "Bad R"  $ error_precisson > (abs $ det r - x11*x22)
-      where (Mat2 (Vec2 x11 x21) (Vec2 x12 x22)) = transpose r.*.r
-    testQ  = msgFail "Bad Q"  $ test_Mat2 idmtx (transpose q.*.q)
-    testQR = msgFail "Bad QR" $ test_Mat2 a (r.*.q)
-    (q,r)  = qrDecomp a
-
-
 prop_Projection::Point3D -> Point3D -> Property
 prop_Projection a b = msgFail "bad projection" $ c &. b < error_precisson
   where c = normalofAtoB a b 
     
-
 prop_partition::Box Point3D -> SetPoint Point3D -> Property
 prop_partition box sP = msgFail "bad points partition" (test1 || test2)
   where

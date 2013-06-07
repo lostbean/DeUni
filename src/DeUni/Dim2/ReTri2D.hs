@@ -18,10 +18,13 @@ getFaceDistCenter :: WPoint Point2D -> WPoint Point2D -> WPoint Point2D -> (Doub
 getFaceDistCenter a b c = let
     center       = (-0.5) *& ((mux *& q1) &+ ( muy *& q2))
     dist         = muy * 0.5 + (q2 &. point a)
-    m            = getM a b c
-    (q,r)        = qrDecomp m
     (mux, muy)   = solveMu ((-1) *& getAlpha a b c) r
     (Mat2 q1 q2) = q
+    
+    m = getM a b c
+    -- hand made QR for row vector matrix
+    q = orthoRowsGram  m
+    r = m .*. transpose q
     
     nd   = let (Vec2 x y) = point b &- point a in Vec2 (-y) x
     dir  = (nd &. (point c &- point a)) * (nd &. (center &- point a))
@@ -70,7 +73,7 @@ qrDecomp m = (q, r)
     x  = _1 m
     a  = let k = norm x in if _1 x > 0 then k else -k
     u  = x &+ a *& (Vec2 1 0)
-    q1 = householder $ mkNormal u
+    q1 = householder u
     q  = transpose q1
     r  = m .*. q
     
