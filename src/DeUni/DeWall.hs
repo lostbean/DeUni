@@ -1,17 +1,3 @@
------------------------------------------------------------------------------
---
--- Module      :  DeHull
--- Copyright   :
--- License     :  AllRightsReserved
---
--- Maintainer  :  Edgar Gomes
--- Stability   :  dev
--- Portability :
---
--- |
---
------------------------------------------------------------------------------
-
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE OverlappingInstances #-}
@@ -26,61 +12,73 @@
 
 
 module DeUni.DeWall
-( runHull3D
-, runDelaunay3D
-, runDelaunay2D
-, reRun
-) where
+  ( runHull3D
+  , runDelaunay
+  , runDelaunay3D
+  , runDelaunay2D
+  , reRun
+  , SetSimplex2D
+  , SetSimplex3D
+  , SetFace3D
+  , module DeUni.Types
+  , module DeUni.Dim2.Base2D
+  , module DeUni.Dim3.Base3D
+  , module DeUni.GeometricTools
+  ) where
 
-
-import Prelude
-import qualified Data.List as L
-import Data.List (map, foldl', filter, head, (\\), minimumBy, maximumBy)
-import qualified Data.Set as S
-import Data.Set (Set)
+import qualified Data.List   as L
+import qualified Data.Set    as S
 import qualified Data.IntMap as IM
-import Data.IntMap (IntMap)
-import Data.Maybe
+  
+import Data.IntMap         (IntMap)
 import Control.Applicative ((<$>))
+
 import Control.Monad.State.Lazy
-
-import Hammer.Math.Vector
-
+import Prelude
+  
 import DeUni.Types
 import DeUni.GeometricTools
-import DeUni.Dim3.Delaunay3D
-import DeUni.Dim3.Hull3D
 import DeUni.Dim3.Base3D
-import DeUni.Dim2.Delaunay2D
+import DeUni.Dim2.Base2D 
+
+import DeUni.Dim2.Delaunay2D ()
+import DeUni.Dim3.Delaunay3D ()
+import DeUni.Dim3.Hull3D     ()
+
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 type SetSimplex2D = IntMap (S2 Point2D)
 type SetSimplex3D = IntMap (S2 Point3D)
 type SetFace3D    = IntMap (S1 Point3D)
 
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Exposed functions |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-reRun::(Buildable s p, Ord (Sub s p), Show (Plane p))=> StateVarsMBC s p -> Box p -> SetPoint p -> [PointPointer] -> SetActiveSubUnits s p -> (IntMap(s p), StateVarsMBC s p)
-reRun st box sP ps faces = runState (mbc ps faces box []) init
+reRun :: (Buildable s p, Ord (Sub s p))=> StateVarsMBC s p -> Box p -> SetPoint p -> [PointPointer] -> SetActiveSubUnits s p -> (IntMap(s p), StateVarsMBC s p)
+reRun st box sP ps faces = runState (mbc ps faces box []) initi
   where
-    init = st { aflAlpha=S.empty, aflBox1=S.empty, aflBox2=S.empty, setPoint=sP }
+    initi = st { aflAlpha=S.empty, aflBox1=S.empty, aflBox2=S.empty, setPoint=sP }
 
-runHull3D::Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetFace3D, StateVarsMBC S1 Point3D)
-runHull3D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S1 Point3D) box []) init
-  where
-    init = initState sP
+runHull3D :: Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetFace3D, StateVarsMBC S1 Point3D)
+runHull3D box sP ps = let
+  initi = initState sP
+  in runState (mbc ps (S.empty::SetActiveSubUnits S1 Point3D) box []) initi
+  
+runDelaunay3D :: Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetSimplex3D, StateVarsMBC S2 Point3D)
+runDelaunay3D box sP ps = let
+  initi = initState sP
+  in runState (mbc ps (S.empty::SetActiveSubUnits S2 Point3D) box []) initi
+     
+runDelaunay2D :: Box Point2D -> SetPoint Point2D -> [PointPointer] -> (SetSimplex2D, StateVarsMBC S2 Point2D)
+runDelaunay2D box sP ps = let
+  initi = initState sP
+  in runState (mbc ps (S.empty::SetActiveSubUnits S2 Point2D) box []) initi
 
-runDelaunay3D::Box Point3D -> SetPoint Point3D -> [PointPointer] -> (SetSimplex3D, StateVarsMBC S2 Point3D)
-runDelaunay3D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S2 Point3D) box []) init
-  where
-    init = initState sP
+runDelaunay :: (Buildable S2 a)=> Box a -> SetPoint a -> [PointPointer] -> (IntMap (S2 a), StateVarsMBC S2 a)
+runDelaunay box sP ps = let
+  initi = initState sP
+  in runState (mbc ps S.empty box []) initi
 
-runDelaunay2D::Box Point2D -> SetPoint Point2D -> [PointPointer] -> (SetSimplex2D, StateVarsMBC S2 Point2D)
-runDelaunay2D box sP ps = runState (mbc ps (S.empty::SetActiveSubUnits S2 Point2D) box []) init
-  where
-    init = initState sP
-
+initState :: SetPoint dim -> StateVarsMBC simplex dim
 initState sP = StateVarsMBC
   { aflAlpha      = S.empty
   , aflBox1       = S.empty
@@ -91,13 +89,10 @@ initState sP = StateVarsMBC
   }
 
 
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Non-Exposed functions |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 -- | Marriage Before Conquer
-mbc::(Buildable slx dim, Ord (Sub slx dim))=> [PointPointer] -> SetActiveSubUnits slx dim -> Box dim -> [Position] -> StateMBC slx dim (IntMap (slx dim))
+mbc :: (Buildable slx dim, Ord (Sub slx dim))=> [PointPointer] -> SetActiveSubUnits slx dim -> Box dim -> [Position] -> StateMBC slx dim (IntMap (slx dim))
 mbc p afl box subbox = do
   cleanAFLs
   sP <- liftM setPoint get
@@ -110,9 +105,9 @@ mbc p afl box subbox = do
   units <- if S.null afl  -- same as null aflAlpha && null aflBox1 && null aflBox2
     then get1stUnits pairBox plane p1 p2 p
     else getUnitsOnPlane pairBox plane p
-  analyzeUnit plane pairBox p1 p2 units
+  analyzeUnit pairBox p1 p2 units
     where                  
-      analyzeUnit plane pairBox p1 p2 units = do 
+      analyzeUnit pairBox p1 p2 units = do 
         st <- get
         let
           afl1 = aflBox1 st
@@ -140,11 +135,11 @@ mbc p afl box subbox = do
             us2 <- mbc p2 afl2 box2 []
             return (us1 `IM.union` us2 `IM.union` units)
 
-cleanAFLs::(Buildable slx dim, Ord (Sub slx dim)) => StateMBC slx dim ()          
+cleanAFLs :: (Buildable slx dim, Ord (Sub slx dim)) => StateMBC slx dim ()          
 cleanAFLs = modify (\x -> x { aflAlpha=S.empty, aflBox1=S.empty, aflBox2=S.empty })
         
 
-get1stUnits::(Buildable slx dim, Ord (Sub slx dim)) => BoxPair dim -> Plane dim -> [PointPointer] ->[PointPointer] -> [PointPointer] -> StateMBC slx dim (IntMap (slx dim))
+get1stUnits :: (Buildable slx dim, Ord (Sub slx dim)) => BoxPair dim -> Plane dim -> [PointPointer] ->[PointPointer] -> [PointPointer] -> StateMBC slx dim (IntMap (slx dim))
 get1stUnits pairBox plane p1 p2 p = do     
   sP <- liftM setPoint get
   case build1stUnit plane sP p1 p2 p of
@@ -158,7 +153,7 @@ get1stUnits pairBox plane p1 p2 p = do
 
 
 -- Simplex Wall Construction
-getUnitsOnPlane::(Buildable slx dim, Ord (Sub slx dim)) => BoxPair dim -> Plane dim -> [PointPointer] -> StateMBC slx dim (IntMap (slx dim))
+getUnitsOnPlane :: (Buildable slx dim, Ord (Sub slx dim)) => BoxPair dim -> Plane dim -> [PointPointer] -> StateMBC slx dim (IntMap (slx dim))
 getUnitsOnPlane pairBox plane p = do
   st <- get
   sP <- liftM setPoint get
@@ -182,7 +177,7 @@ getUnitsOnPlane pairBox plane p = do
           getUnitsOnPlane pairBox plane p
 
 
-splitAF::(Buildable slx dim, Ord (Sub slx dim)) => BoxPair dim -> ActiveSubUnit slx dim -> StateMBC slx dim ()
+splitAF :: (Buildable slx dim, Ord (Sub slx dim)) => BoxPair dim -> ActiveSubUnit slx dim -> StateMBC slx dim ()
 splitAF pairBox e = do
   sP <- liftM setPoint get
   case subUnitPos pairBox sP e of
@@ -194,16 +189,16 @@ splitAF pairBox e = do
       upP1     = updateSubUnit e modP1
       upP2     = updateSubUnit e modP2
       upAlpha  = updateSubUnit e modAlpha
-      modP1    = (aflBox1 , \mod x -> x { aflBox1  = mod })
-      modP2    = (aflBox2 , \mod x -> x { aflBox2  = mod })
-      modAlpha = (aflAlpha, \mod x -> x { aflAlpha = mod })
+      modP1    = (aflBox1 , \modf x -> x { aflBox1  = modf })
+      modP2    = (aflBox2 , \modf x -> x { aflBox2  = modf })
+      modAlpha = (aflAlpha, \modf x -> x { aflAlpha = modf })
 
-      updateSubUnit edge (func, mod) = do
+      updateSubUnit edge (func, modf) = do
         set <- func <$> get
         case S.member edge set of
           False -> do
-            modify (mod $ S.insert edge set)
+            modify (modf $ S.insert edge set)
             return ()
           True  -> do
-            modify (mod $ S.delete edge set)
+            modify (modf $ S.delete edge set)
             return ()

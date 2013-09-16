@@ -6,35 +6,40 @@
 module DeUni.GeometricTools where
 
 import Prelude hiding (null, lookup)
-import Control.Applicative ((<$>))
-import Control.Monad.State.Lazy
 import Data.List (foldl')
-import Data.Maybe
 
-import Hammer.Math.Vector
+import Hammer.Math.Algebra
 
 import DeUni.Types
 
+truncation::Double
+truncation = 1e-10
+
 -- | Projection A on B = B * (A°B)/(B°B)
-projAonB::(Vector a, DotProd a) => a -> a -> a
+projAonB::(MultiVec a, DotProd a) => a -> a -> a
 projAonB a b = b &* ((a &. b) / (b &. b))
 
 -- | Normal component of A to B
-normalofAtoB::(Vector a, DotProd a) => a -> a -> a
+normalofAtoB::(MultiVec a, DotProd a) => a -> a -> a
 normalofAtoB a b = normalize $ a &- (projAonB a b)
 
-powerDist::(PointND a) => WPoint a -> WPoint a -> Double
-powerDist a b = (normsqr $ point a &- point b) - weigth a - weigth b
+-- | retrieve the radius of a weigthed point
+radius :: (PointND a) => WPoint a -> Double
+radius = sqrt . weight
+
+powerDist :: (PointND a) => WPoint a -> WPoint a -> Double
+powerDist a b = (normsqr $ point a &- point b) - weight a - weight b
 
 whichSideOfPlane::(PointND a) => Plane a -> a -> Position
-whichSideOfPlane plane p = case compare projection dist of
-  EQ -> OnPlane        
-  GT -> B1
-  LT -> B2
+whichSideOfPlane plane p 
+  | truncation > delta = OnPlane
+  | projection > dist  = B1
+  | otherwise          = B2
   where
     projection = p &. (normalize.planeNormal) plane
     dist       = planeDist plane
-
+    delta      = abs (projection - dist)
+    
 -- | Project a vector-point on the plane that goes throw the oringe.
 --   It discard the distance on Plane data. It assumes that the plane pass throw the oringe
 getProjOnPlane::(PointND a) => Plane a -> a -> a
@@ -105,15 +110,39 @@ facePos pairBox sP a b c = case (findPos $ sP!.a, findPos $ sP!.b, findPos $ sP!
 
 -- | Performance can be improve by removing the duplicate call to "func" in "dropZero"
 -- and the first "(func x, x)"
-findMinimunButZero::(PointND a)=>(PointPointer -> Double) -> SetPoint a -> [PointPointer] -> Maybe (Double, PointPointer)
-findMinimunButZero func sP ps = case pStartWithNoZero of
-    []     -> Nothing
-    (x:xs) -> Just $ foldl' (\pair i -> foldMaybe pair (func i, i)) (func x, x) xs
-    where
-      pStartWithNoZero = dropWhile dropZero ps
-      dropZero = (flip$(==).func) 0
-      foldMaybe new@(n, i) old@(nOld, iOld)
-        | n == 0   = old
-        | n > nOld = old
-        | n < nOld = new
-        | otherwise = error $ "Multiple points on circle or sphere! " ++ show new 
+findMinimunButZero :: (PointPointer -> Double) -> [PointPointer] -> Maybe (Double, PointPointer)
+findMinimunButZero func ps = let
+  ds     = map dist ps
+  dist i = Just (func i, i)
+  
+  foldMaybe Nothing old = old
+  foldMaybe new@(Just (d, _)) old = case old of
+    Just (olddist, _)
+      | d == 0      -> old
+      | d > olddist -> old
+      | d < olddist -> new
+      | otherwise   -> error $ "Multiple points on circle or sphere! " ++ show new
+    Nothing -> new
+
+  in foldl' foldMaybe Nothing ds
+     
+-- | Performance can be improve by removing the duplicate call to "func" in "dropZero"
+-- and the first "(func x, x)"
+findMinimunButZero' :: (PointPointer -> Maybe Double) -> [PointPointer] -> Maybe (Double, PointPointer)
+findMinimunButZero' func ps = let
+  ds = map dist ps
+  
+  dist i = case func i of
+    Just x -> Just (x, i)
+    _      -> Nothing
+  
+  foldMaybe Nothing old = old
+  foldMaybe new@(Just (d, _)) old = case old of
+    Just (olddist, _)
+      | d == 0      -> old
+      | d > olddist -> old
+      | d < olddist -> new
+      | otherwise   -> error $ "Multiple points on circle or sphere! " ++ show new
+    Nothing -> new
+
+  in foldl' foldMaybe Nothing ds
