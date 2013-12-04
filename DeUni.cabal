@@ -28,10 +28,10 @@ library
                      -fno-warn-unused-do-bind
     hs-source-dirs:  src
     Build-Depends:    base       == 4.*
-                    , random     == 1.0.*
+                    , random     >= 1.0
                     , containers >= 0.4
-                    , mtl        == 2.*
-                    , vector     == 0.10.*
+                    , mtl        >= 2.0
+                    , vector     >= 0.10
                     , hammer     == 0.2.0
 
     Exposed-modules:    DeUni.DeWall
@@ -66,10 +66,10 @@ Executable DeUni-check
                         , QuickCheck      >= 2.1
                         , hammer          >= 0.1
                         , containers      >= 0.5
-                        , diagrams-svg    >= 0.3 && < 0.7
-                        , diagrams-lib    >= 0.5 && < 0.7
-                        , diagrams-core   >= 0.5 && < 0.7
-                        , blaze-svg       >= 0.3 && < 0.4
+                        , diagrams-svg    >= 0.3
+                        , diagrams-lib    >= 0.5
+                        , diagrams-core   >= 0.5
+                        , blaze-svg       >= 0.1
                         , colour          >= 2.3
                         , blaze-builder   >= 0.3
                         , bytestring      >= 0.9
