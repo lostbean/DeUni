@@ -1,13 +1,13 @@
 Name:                   DeUni
-Version:                0.3.2
+Version:                0.3.3
 License:                GPL-3
 License-file:           LICENSE
 Author:                 Edgar Gomes de Araujo
 Maintainer:             Edgar Gomes de Araujo <talktoedgar@gmail.com>
-Homepage:            
+Homepage:
 Stability:              Experimental
 Synopsis:               3D Convex Hull and Delaunay triangulation generator
-Description:         
+Description:
     3D Convex Hull and Delaunay triangulation generator based on MBC
     (Marriage Before Conquer).
 Cabal-version:          >= 1.8
@@ -32,7 +32,7 @@ library
                     , containers >= 0.4
                     , mtl        >= 2.0
                     , vector     >= 0.10
-                    , hammer     == 0.2.0
+                    , hammer     >= 0.3
 
     Exposed-modules:    DeUni.DeWall
                         DeUni.Types
@@ -64,7 +64,7 @@ Executable DeUni-check
       build-depends:      DeUni
                         , base            <= 5
                         , QuickCheck      >= 2.1
-                        , hammer          >= 0.1
+                        , hammer          >= 0.3
                         , containers      >= 0.5
                         , diagrams-svg    >= 0.3
                         , diagrams-lib    >= 0.5
@@ -92,9 +92,9 @@ Executable DeUni-benchmark
 
       build-depends:     DeUni
                         , base            <= 5
-                        , vector          >= 0.9  
+                        , vector          >= 0.9
                         , criterion       >= 0.6
-                        , hammer          >= 0.1
+                        , hammer          >= 0.3
                         , monad-loops     >= 0.3
                         , random-source   >= 0.3
                         , random-fu       >= 0.2
@@ -102,4 +102,3 @@ Executable DeUni-benchmark
 
     else
       Buildable:        False
-
