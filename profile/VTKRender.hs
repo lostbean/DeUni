@@ -12,7 +12,7 @@ module VTKRender
 import qualified Data.Vector.Unboxed as VU
 
 import Hammer.Math.Algebra
-import Hammer.Render.VTK.VTKRender
+import Hammer.VTK
 
 import DeUni.Types
 import DeUni.Dim3.Base3D
