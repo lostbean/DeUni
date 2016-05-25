@@ -1,9 +1,11 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-
+{-# LANGUAGE
+    FlexibleContexts
+  , RecordWildCards
+  , NamedFieldPuns
+  , MultiParamTypeClasses
+  , TypeSynonymInstances
+  , TypeFamilies
+  #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module DeUni.Dim2.Delaunay2D where
@@ -37,11 +39,11 @@ makeFirstSimplex alpha sP sideA sideB ps = do
   (pA, pB) <- getFirstEdge alpha sP sideA sideB
   let edge = Edge2D pA pB
   plane    <- calcPlane sP edge
-  let 
+  let
     newND
       | (null.pointsOnB1) pp = neg nd
       | otherwise            = nd
-    nd = plane2DNormal plane                               
+    nd = plane2DNormal plane
     psClean = ps \\ [pA, pB]
     pp = pointSetPartition (whichSideOfPlane plane) sP psClean
     actFace = ActiveUnit { activeUnit = edge, assocP = undefined, assocND = newND }
@@ -51,7 +53,7 @@ edge3DPos pairBox sP e = let
   l = edge2DL . activeUnit $ e
   r = edge2DR . activeUnit $ e
   in edgePos pairBox sP l r
-     
+
 extractAllFaceEdges :: SetPoint Point2D -> S2 Point2D -> [ActiveSubUnit S2 Point2D]
 extractAllFaceEdges sP sigma = map toSimplexFace fsAll
   where
@@ -66,14 +68,14 @@ extractAllFaceEdges sP sigma = map toSimplexFace fsAll
         | otherwise                   -> nd
         where nd = plane2DNormal p
       _ -> error "Delaunay2D: Bad face!!!"
-      
+
 makeSimplex :: ActiveSubUnit S2 Point2D -> SetPoint Point2D -> [PointPointer] -> Maybe (S2 Point2D)
 makeSimplex actFace sP ps = do
   minR  <- findMinRadius
   sigma <- buildSimplexFace minR
   return sigma
   where
-    buildSimplexFace (_, i) = 
+    buildSimplexFace (_, i) =
       let (rad, center) = getCircumCircle (sP!a) (sP!b) (sP!i)
       in return $ Face2D { circleCenter = center
                          , circleRadius = rad
@@ -87,6 +89,3 @@ makeSimplex actFace sP ps = do
     a             = edge2DR edge
     b             = edge2DL edge
     nd            = assocND actFace
-
-    
-

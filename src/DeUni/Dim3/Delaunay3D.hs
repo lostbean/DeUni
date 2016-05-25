@@ -1,9 +1,11 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-
+{-# LANGUAGE
+    FlexibleContexts
+  , RecordWildCards
+  , NamedFieldPuns
+  , MultiParamTypeClasses
+  , TypeSynonymInstances
+  , TypeFamilies
+  #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module DeUni.Dim3.Delaunay3D where
@@ -22,7 +24,7 @@ import DeUni.Dim3.Base3D
 import DeUni.Dim3.ReTri3D
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%| Delaunay3D |%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  
+
 instance Buildable S2 Point3D where
   type Sub S2    = S1
   buildUnit      = makeSimplex
@@ -34,12 +36,12 @@ makeFirstSimplex :: Plane Point3D -> SetPoint Point3D -> [PointPointer] -> [Poin
 makeFirstSimplex alpha sP sideA sideB ps = do
   face  <- build1stUnit alpha sP sideA sideB ps
   plane <- calcPlane sP face
-  let 
+  let
     newND
       | (null.pointsOnB1) pp = nd
       | otherwise            = neg nd
     (a,b,c) = face3DPoints face
-    nd = plane3DNormal plane                               
+    nd = plane3DNormal plane
     psClean = ps \\ [a, b, c]
     pp = pointSetPartition (whichSideOfPlane plane) sP psClean
     actFace = ActiveUnit { activeUnit = face, assocP = undefined, assocND = newND }
@@ -56,7 +58,7 @@ extractAllSimplexFaces sP sigma = map toSimplexFace fsAll
       nd = outterND fp
       in ActiveUnit { activeUnit = Face3D f, assocP = x, assocND = nd }
     outterND ((na, nb, nc), x) = let
-      nd = normalize (sP!.nb &- sP!.na) &^ (sP!.nc &- sP!.na) 
+      nd = normalize (sP!.nb &- sP!.na) &^ (sP!.nc &- sP!.na)
       in if (sP!.na &- sP!.x) &. nd > 0 then neg nd else nd
 
 makeSimplex :: ActiveSubUnit S2 Point3D -> SetPoint Point3D -> [PointPointer] -> Maybe (S2 Point3D)
@@ -66,7 +68,7 @@ makeSimplex actFace sP ps = do
   return sigma
   where
     buildSimplexFace (_, d) =
-      let (rad, center) = getCircumSphere (sP!a) (sP!b) (sP!c) (sP!d) 
+      let (rad, center) = getCircumSphere (sP!a) (sP!b) (sP!c) (sP!d)
       in return Tetrahedron { circumSphereCenter = center
                             , circumSphereRadius = rad
                             , tetraPoints  = (a,b,c,d) }
@@ -77,4 +79,3 @@ makeSimplex actFace sP ps = do
     isSideOk i    = 0 < (sP!.a &- sP!.i) &. nd
     (a, b, c)     = (face3DPoints.activeUnit) actFace
     nd            = assocND actFace
- 

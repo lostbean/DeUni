@@ -1,17 +1,18 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-
+{-# LANGUAGE
+    FlexibleContexts
+  , RecordWildCards
+  , NamedFieldPuns
+  , MultiParamTypeClasses
+  , TypeSynonymInstances
+  , TypeFamilies
+  #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module DeUni.Dim3.Hull3D where
 
-import Prelude hiding      (null, lookup)
-import Data.List           (foldl')
-import Control.Applicative ((<$>))
-    
+import Prelude hiding (null, lookup)
+import Data.List (foldl')
+
 import Hammer.Math.Algebra
 
 import DeUni.GeometricTools
@@ -20,13 +21,13 @@ import DeUni.FirstSeed
 import DeUni.Dim3.Base3D
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Hull3D |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  
+
 instance Buildable S1 Point3D where
   type Sub S1    = S0
   buildUnit      = makeFace
   build1stUnit   = makeFirstFace
   getAllSubUnits = extractAllFaceEdges
-  subUnitPos     = edge3DPos 
+  subUnitPos     = edge3DPos
 
 makeFirstFace :: Plane Point3D -> SetPoint Point3D -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe (S1 Point3D)
 makeFirstFace alpha sP sideA sideB ps = do
@@ -38,12 +39,12 @@ edge3DPos pairBox sP e = let
   l = edge3DL . activeUnit $ e
   r = edge3DR . activeUnit $ e
   in edgePos pairBox sP l r
-     
+
 extractAllFaceEdges :: SetPoint Point3D -> S1 Point3D -> [ActiveSubUnit S1 Point3D]
-extractAllFaceEdges _ sigma = 
+extractAllFaceEdges _ sigma =
   let (a,b,c) = face3DPoints sigma
   in  [ ActiveUnit (Edge3D a b) c undefined
-      , ActiveUnit (Edge3D b c) a undefined 
+      , ActiveUnit (Edge3D b c) a undefined
       , ActiveUnit (Edge3D c a) b undefined ]
 
 makeFace :: ActiveSubUnit S1 Point3D -> SetPoint Point3D -> [PointPointer] -> Maybe (S1 Point3D)
@@ -56,7 +57,7 @@ makeFace e sP ps = do
     pB = (edge3DR.activeUnit) e
 
     get1stAng []     = Nothing
-    get1stAng (pp:pps) = case calcAngBetweenSimplex e sP pp of 
+    get1stAng (pp:pps) = case calcAngBetweenSimplex e sP pp of
       Nothing  -> get1stAng pps
       Just ang -> Just (pp, ang)
 
@@ -88,5 +89,3 @@ calcAngBetweenSimplex ae sP p
     vOnOldFace     = sP!.pC &- pB'
     vOnNewFace     = sP!.p  &- pB'
     normalToEdge x = normalofAtoB x edge
-
- 

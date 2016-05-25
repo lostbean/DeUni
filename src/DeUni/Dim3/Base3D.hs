@@ -1,24 +1,24 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE OverlappingInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-
-
+{-# LANGUAGE
+    FlexibleContexts
+  , GeneralizedNewtypeDeriving
+  , TypeSynonymInstances
+  , OverlappingInstances
+  , FlexibleInstances
+  , FlexibleContexts
+  , RecordWildCards
+  , NamedFieldPuns
+  , BangPatterns
+  , TypeFamilies
+  , MultiParamTypeClasses
+  , FunctionalDependencies
+  #-}
 module DeUni.Dim3.Base3D where
 
 import qualified Data.List as L
-  
-import Control.Applicative  ((<$>))
-import Data.List            ((\\))
-import Data.Vector          ((!))
-  
+
+import Data.List ((\\))
+import Data.Vector ((!))
+
 import Hammer.Math.Algebra
 
 import DeUni.GeometricTools
@@ -35,36 +35,36 @@ instance PointND Point3D where
     , zMax3D::Double
     , zMin3D::Double
     } deriving (Show, Eq)
-  
+
   data Plane Point3D   = Plane3D
     { plane3DNormal::Vec3
     , plane3DDist  ::Double
     } deriving (Show, Eq)
- 
+
   data S0 Point3D      = Edge3D
     { edge3DL :: PointPointer
     , edge3DR :: PointPointer
     } deriving (Show)
-  
+
   data S1 Point3D      = Face3D
    { face3DPoints   :: (PointPointer, PointPointer, PointPointer)
    } deriving (Show)
-  
+
   data S2 Point3D      = Tetrahedron
    { circumSphereCenter :: Point3D
-   , circumSphereRadius :: Double  
+   , circumSphereRadius :: Double
    , tetraPoints        :: (PointPointer, PointPointer, PointPointer, PointPointer)
    } deriving (Show, Eq)
 
-  compS0 a b = compEdge (edge3DL a) (edge3DR a) (edge3DL b) (edge3DR b)    
-  
+  compS0 a b = compEdge (edge3DL a) (edge3DR a) (edge3DL b) (edge3DR b)
+
   compS1 a b = compFace (face3DPoints a) (face3DPoints b)
-  
+
   circumOrigin = circumSphereCenter
-  
-  circumRadius = circumSphereRadius  
-  
-  isInBox box (Vec3 x y z) = let 
+
+  circumRadius = circumSphereRadius
+
+  isInBox box (Vec3 x y z) = let
     between minV maxV v
       --will get points on the edge of the box and store if P1 those are on the commun face
       | minV < maxV = (v >= minV) && (maxV >= v)
@@ -104,7 +104,7 @@ instance PointND Point3D where
       nSize         = norm nd
       normND        = normalize nd
       d             = normND &. a
-  
+
   cutBox inBox subB
     | null subB = smartBox inBox inBox
     | otherwise = func     inBox subB
@@ -137,11 +137,11 @@ getThrirdPoint sP pA pB ps = do
   where
     cleanList x = ps \\ [pA, pB, x]
     justHull    = filter isHull ps
-    
+
     findThird = let
       dist = getSignDist sP pA pB
       in findMinimunButZero' dist justHull
-    
+
     isHull x
       | x == pA || x == pB = False
       | otherwise = let
@@ -153,7 +153,7 @@ getThrirdPoint sP pA pB ps = do
             | otherwise              -> False
             where pp = pointSetPartition (whichSideOfPlane plane) sP (cleanList x)
           Nothing                    -> False
-    
+
     getND x = let
       face = Face3D { face3DPoints = (pA, pB, x) }
       func plane
@@ -173,14 +173,14 @@ rotate nd x = let
   sinV = sqrt (1 - cosV * cosV)
   in x &* cosV &+ (w &^ x) &* sinV &+ w &* ((w &. x)*(1 - cosV))
 
--- | Get the signed distance from c to the center of the edge <a,b> which are circumscribed 
+-- | Get the signed distance from c to the center of the edge <a,b> which are circumscribed
 -- by a circle.
 getSignDist::SetPoint Point3D -> PointPointer -> PointPointer -> PointPointer -> Maybe Double
 getSignDist sp a b c = let
   face = Face3D { face3DPoints = (a, b, c) }
   getIn2D plane = let
     rot = rotate (planeNormal plane)
-    -- rotate the face <a,b,c>, where a,b,c = R3, to a face with normal // (0,0,1) 
+    -- rotate the face <a,b,c>, where a,b,c = R3, to a face with normal // (0,0,1)
     (Vec3 x1 y1 _) = rot (sp!.a)
     (Vec3 x2 y2 _) = rot (sp!.b)
     (Vec3 x3 y3 _) = rot (sp!.c)
@@ -192,4 +192,3 @@ getSignDist sp a b c = let
     in fst $ getFaceDistCenter pA pB pC
 
   in getIn2D <$> calcPlane sp face
-  

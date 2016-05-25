@@ -32,7 +32,7 @@ library
                     , containers >= 0.4
                     , mtl        >= 2.0
                     , vector     >= 0.10
-                    , hammer     >= 0.3
+                    , hammer     == 0.4.*
 
     Exposed-modules:    DeUni.DeWall
                         DeUni.Types
@@ -64,7 +64,7 @@ Executable DeUni-check
       build-depends:      DeUni
                         , base            <= 5
                         , QuickCheck      >= 2.1
-                        , hammer          >= 0.3
+                        , hammer          == 0.4.*
                         , containers      >= 0.5
                         , diagrams-svg    >= 0.3
                         , diagrams-lib    >= 0.5
@@ -94,7 +94,7 @@ Executable DeUni-benchmark
                         , base            <= 5
                         , vector          >= 0.9
                         , criterion       >= 0.6
-                        , hammer          >= 0.3
+                        , hammer          == 0.4.*
                         , monad-loops     >= 0.3
                         , random-source   >= 0.3
                         , random-fu       >= 0.2
