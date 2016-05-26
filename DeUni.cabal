@@ -27,12 +27,12 @@ library
                      -fno-warn-orphans
                      -fno-warn-unused-do-bind
     hs-source-dirs:  src
-    Build-Depends:    base       == 4.*
-                    , random     >= 1.0
-                    , containers >= 0.4
-                    , mtl        >= 2.0
-                    , vector     >= 0.10
-                    , hammer     == 0.4.*
+    Build-Depends:    base        == 4.*
+                    , random      >= 1.0
+                    , containers  >= 0.4
+                    , mtl         >= 2.0
+                    , vector      >= 0.10
+                    , linear-vect == 0.2.*
 
     Exposed-modules:    DeUni.DeWall
                         DeUni.Types

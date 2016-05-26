@@ -1,26 +1,19 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
-
 module DeUni.GeometricTools where
 
-import Prelude hiding (null, lookup)
+import Prelude
 import Data.List (foldl')
 
-import Hammer.Math.Algebra
+import Linear.Class
 
 import DeUni.Types
 
-truncation::Double
-truncation = 1e-10
-
 -- | Projection A on B = B * (A°B)/(B°B)
-projAonB::(MultiVec a, DotProd a) => a -> a -> a
+projAonB::(LinearMap a v, DotProd a v, Fractional a) => v a -> v a -> v a
 projAonB a b = b &* ((a &. b) / (b &. b))
 
 -- | Normal component of A to B
-normalofAtoB::(MultiVec a, DotProd a) => a -> a -> a
+normalofAtoB::(LinearMap a v, DotProd a v, Norm a v) => v a -> v a -> v a
 normalofAtoB a b = normalize $ a &- (projAonB a b)
 
 -- | retrieve the radius of a weigthed point
@@ -30,26 +23,25 @@ radius = sqrt . weight
 powerDist :: (PointND a) => WPoint a -> WPoint a -> Double
 powerDist a b = (normsqr $ point a &- point b) - weight a - weight b
 
-whichSideOfPlane::(PointND a) => Plane a -> a -> Position
-whichSideOfPlane plane p 
-  | truncation > delta = OnPlane
-  | projection > dist  = B1
-  | otherwise          = B2
+whichSideOfPlane :: (PointND a, Norm Double a) => Plane a -> a Double -> Position
+whichSideOfPlane plane p
+  | onPlane           = OnPlane
+  | projection > dist = B1
+  | otherwise         = B2
   where
-    projection = p &. (normalize.planeNormal) plane
+    projection = p &. (normalize . planeNormal) plane
     dist       = planeDist plane
-    delta      = abs (projection - dist)
-    
+    onPlane    = isMainlyZero (projection - dist)
+
 -- | Project a vector-point on the plane that goes throw the oringe.
 --   It discard the distance on Plane data. It assumes that the plane pass throw the oringe
-getProjOnPlane::(PointND a) => Plane a -> a -> a
+getProjOnPlane::(PointND a) => Plane a -> a Double -> a Double
 getProjOnPlane plane p = projOnPlane
   where
     nd = planeNormal plane
     projOnPlane = p &- projAonB p nd
 
-
-pointSetPartition::(PointND a) => (a -> Position) -> SetPoint a -> [PointPointer] -> PointPartition
+pointSetPartition::(PointND a) => (a Double -> Position) -> SetPoint a -> [PointPointer] -> PointPartition
 pointSetPartition func sP ps = convert $ splitInBox ([],[],[]) ps
   where
     convert (p1,p2,pA) = PointPartition p1 p2 pA
@@ -60,7 +52,7 @@ pointSetPartition func sP ps = convert $ splitInBox ([],[],[]) ps
       OnPlane -> splitInBox (p1,p2,x:pA) xs
       _       -> splitInBox (p1,p2,pA)   xs
 
-whichBoxIsIt::(PointND a) => BoxPair a -> a -> Position
+whichBoxIsIt::(PointND a) => BoxPair a -> a Double -> Position
 whichBoxIsIt pairBox p
   | inbox1           = B1
   | inbox2           = B2
@@ -69,8 +61,8 @@ whichBoxIsIt pairBox p
     where
       inbox1 = isInBox (halfBox1 pairBox) p
       inbox2 = isInBox (halfBox2 pairBox) p
-      
-      
+
+
 edgePos::(PointND a) => BoxPair a -> SetPoint a -> PointPointer -> PointPointer -> Position
 edgePos pairBox sP a b = case (findPos $ sP!.a, findPos $ sP!.b) of
   (B1,B1)      -> B1
@@ -83,7 +75,7 @@ edgePos pairBox sP a b = case (findPos $ sP!.a, findPos $ sP!.b) of
   (_,None)     -> None
   _            -> CrossPlane
   where findPos  = whichBoxIsIt pairBox
-        
+
 facePos::(PointND a) => BoxPair a -> SetPoint a -> PointPointer -> PointPointer -> PointPointer -> Position
 facePos pairBox sP a b c = case (findPos $ sP!.a, findPos $ sP!.b, findPos $ sP!.c) of
     (B1,B1,B1)                -> B1
@@ -114,7 +106,7 @@ findMinimunButZero :: (PointPointer -> Double) -> [PointPointer] -> Maybe (Doubl
 findMinimunButZero func ps = let
   ds     = map dist ps
   dist i = Just (func i, i)
-  
+
   foldMaybe Nothing old = old
   foldMaybe new@(Just (d, _)) old = case old of
     Just (olddist, _)
@@ -125,17 +117,17 @@ findMinimunButZero func ps = let
     Nothing -> new
 
   in foldl' foldMaybe Nothing ds
-     
+
 -- | Performance can be improve by removing the duplicate call to "func" in "dropZero"
 -- and the first "(func x, x)"
 findMinimunButZero' :: (PointPointer -> Maybe Double) -> [PointPointer] -> Maybe (Double, PointPointer)
 findMinimunButZero' func ps = let
   ds = map dist ps
-  
+
   dist i = case func i of
     Just x -> Just (x, i)
     _      -> Nothing
-  
+
   foldMaybe Nothing old = old
   foldMaybe new@(Just (d, _)) old = case old of
     Just (olddist, _)

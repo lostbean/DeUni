@@ -18,7 +18,7 @@ import Data.IntMap (IntMap)
 import Data.Set    (Set)
 import Data.Vector (Vector, (!))
 
-import Hammer.Math.Algebra
+import Linear.Vect
 
 import DeUni.DeWall
 import DeUni.Types

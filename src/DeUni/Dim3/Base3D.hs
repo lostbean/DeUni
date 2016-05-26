@@ -1,17 +1,9 @@
 {-# LANGUAGE
     FlexibleContexts
-  , GeneralizedNewtypeDeriving
-  , TypeSynonymInstances
-  , OverlappingInstances
-  , FlexibleInstances
-  , FlexibleContexts
   , RecordWildCards
-  , NamedFieldPuns
-  , BangPatterns
   , TypeFamilies
-  , MultiParamTypeClasses
-  , FunctionalDependencies
   #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module DeUni.Dim3.Base3D where
 
 import qualified Data.List as L
@@ -19,39 +11,38 @@ import qualified Data.List as L
 import Data.List ((\\))
 import Data.Vector ((!))
 
-import Hammer.Math.Algebra
+import Linear.Vect
 
 import DeUni.GeometricTools
 import DeUni.Types
 import DeUni.Dim2.ReTri2D
 
-
-instance PointND Point3D where
-  data Box Point3D     =  Box3D
-    { xMax3D::Double
-    , xMin3D::Double
-    , yMax3D::Double
-    , yMin3D::Double
-    , zMax3D::Double
-    , zMin3D::Double
+instance PointND Vec3 where
+  data Box Vec3 =  Box3D
+    { xMax3D :: Double
+    , xMin3D :: Double
+    , yMax3D :: Double
+    , yMin3D :: Double
+    , zMax3D :: Double
+    , zMin3D :: Double
     } deriving (Show, Eq)
 
-  data Plane Point3D   = Plane3D
-    { plane3DNormal::Vec3
-    , plane3DDist  ::Double
+  data Plane Vec3 = Plane3D
+    { plane3DNormal :: Vec3D
+    , plane3DDist   :: Double
     } deriving (Show, Eq)
 
-  data S0 Point3D      = Edge3D
+  data S0 Vec3 = Edge3D
     { edge3DL :: PointPointer
     , edge3DR :: PointPointer
     } deriving (Show)
 
-  data S1 Point3D      = Face3D
-   { face3DPoints   :: (PointPointer, PointPointer, PointPointer)
+  data S1 Vec3 = Face3D
+   { face3DPoints :: (PointPointer, PointPointer, PointPointer)
    } deriving (Show)
 
-  data S2 Point3D      = Tetrahedron
-   { circumSphereCenter :: Point3D
+  data S2 Vec3 = Tetrahedron
+   { circumSphereCenter :: Vec3D
    , circumSphereRadius :: Double
    , tetraPoints        :: (PointPointer, PointPointer, PointPointer, PointPointer)
    } deriving (Show, Eq)
@@ -69,7 +60,7 @@ instance PointND Point3D where
       --will get points on the edge of the box and store if P1 those are on the commun face
       | minV < maxV = (v >= minV) && (maxV >= v)
       | minV > maxV = (v <= minV) && (maxV <= v)
-      | otherwise = error ("Zero size box: " ++ show (box))
+      | otherwise = error ("Zero size box: " ++ show box)
     in between (xMin3D box) (xMax3D box) x
     && between (yMin3D box) (yMax3D box) y
     && between (zMin3D box) (zMax3D box) z
@@ -77,7 +68,7 @@ instance PointND Point3D where
 
   planeNormal = plane3DNormal
   planeDist   = plane3DDist
-  makePlane n dist = Plane3D n dist
+  makePlane   = Plane3D
 
   calcPlane sp face
     | nSize == 0 = Nothing
@@ -86,7 +77,7 @@ instance PointND Point3D where
     where
       (a,b,c) = face3DPoints face
       n       = (sp!.b &- sp!.a) &^ (sp!.c &- sp!.a)
-      nSize   = len n
+      nSize   = vlen n
       -- Double normalization to avoid floating point operations errors in some computers
       -- Critical in case of multiple points algined in a plane e.g. on a face of the box
       normN   = (normalize . normalize) n
@@ -115,9 +106,9 @@ instance PointND Point3D where
         B2 -> func (halfBox2.snd $ smartBox sub sub) ps
         _  -> func sub ps
       smartBox box Box3D{..}
-        | (deltaX >= (max deltaY deltaZ)) = (Plane3D (Vec3 1 0 0) halfX, cutX)
-        | (deltaY >= (max deltaX deltaZ)) = (Plane3D (Vec3 0 1 0) halfY, cutY)
-        | otherwise                       = (Plane3D (Vec3 0 0 1) halfZ, cutZ)
+        | deltaX >= max deltaY deltaZ = (Plane3D (Vec3 1 0 0) halfX, cutX)
+        | deltaY >= max deltaX deltaZ = (Plane3D (Vec3 0 1 0) halfY, cutY)
+        | otherwise                   = (Plane3D (Vec3 0 0 1) halfZ, cutZ)
         where
           cutX = BoxPair box { xMax3D = halfX } box { xMin3D = halfX }
           cutY = BoxPair box { yMax3D = halfY } box { yMin3D = halfY }
@@ -129,8 +120,7 @@ instance PointND Point3D where
           halfY = (yMax3D + yMin3D)/2
           halfZ = (zMax3D + zMin3D)/2
 
-
-getThrirdPoint :: (PointND Point3D) => SetPoint Point3D -> PointPointer -> PointPointer -> [PointPointer] -> Maybe (PointPointer, Point3D)
+getThrirdPoint :: (PointND Vec3) => SetPoint Vec3 -> PointPointer -> PointPointer -> [PointPointer] -> Maybe (PointPointer, Vec3D)
 getThrirdPoint sP pA pB ps = do
   (_, i) <- findThird
   getND i
@@ -165,7 +155,7 @@ getThrirdPoint sP pA pB ps = do
 
 -- | Rotate points from a plane with normal nd to a plane with normal = (0,0,1)
 -- using axi-angle and Rodriges' equation.
-rotate::Point3D -> Point3D -> Point3D
+rotate :: Vec3D -> Vec3D -> Vec3D
 rotate nd x = let
   v    = Vec3 0 0 1
   w    = nd &^ v
@@ -175,7 +165,7 @@ rotate nd x = let
 
 -- | Get the signed distance from c to the center of the edge <a,b> which are circumscribed
 -- by a circle.
-getSignDist::SetPoint Point3D -> PointPointer -> PointPointer -> PointPointer -> Maybe Double
+getSignDist :: SetPoint Vec3 -> PointPointer -> PointPointer -> PointPointer -> Maybe Double
 getSignDist sp a b c = let
   face = Face3D { face3DPoints = (a, b, c) }
   getIn2D plane = let

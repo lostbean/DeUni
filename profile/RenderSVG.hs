@@ -22,7 +22,7 @@ import Diagrams.Prelude hiding (width, height, interval)
 import Diagrams.Backend.SVG
 
 import DeUni.DeWall
-import Hammer.Math.Algebra
+import Linear.Vect
 
 
 sizeSpec (width, height) = case (width, height) of

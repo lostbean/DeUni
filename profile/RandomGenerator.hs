@@ -22,7 +22,7 @@ import Data.Random.RVar
 import Data.Random.Source.StdGen
 import System.Random.Mersenne.Pure64
 
-import Hammer.Math.Algebra
+import Linear.Vect
 import DeUni.Types
 import DeUni.Dim3.Base3D
 import DeUni.Dim2.Base2D

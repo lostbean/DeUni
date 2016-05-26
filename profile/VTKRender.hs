@@ -11,7 +11,7 @@ module VTKRender
 
 import qualified Data.Vector.Unboxed as VU
 
-import Hammer.Math.Algebra
+import Linear.Vect
 import Hammer.VTK
 
 import DeUni.Types

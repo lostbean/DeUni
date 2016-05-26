@@ -20,7 +20,7 @@ import Test.QuickCheck
 import Control.Applicative
 import Control.Monad
 
-import Hammer.Math.Algebra
+import Linear.Vect
 
 import DeUni.DeWall
 import DeUni.Types
