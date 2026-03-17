@@ -1,104 +1,101 @@
-Name:                   DeUni
-Version:                0.3.3
-License:                GPL-3
-License-file:           LICENSE
-Author:                 Edgar Gomes de Araujo
-Maintainer:             Edgar Gomes de Araujo <talktoedgar@gmail.com>
-Homepage:
-Stability:              Experimental
-Synopsis:               3D Convex Hull and Delaunay triangulation generator
-Description:
-    3D Convex Hull and Delaunay triangulation generator based on MBC
-    (Marriage Before Conquer).
-Cabal-version:          >= 1.8
-Build-type:             Simple
-Category:               Data, Math
+name:          DeUni
+version:       0.3.3
+license:       GPL-3
+license-file:  LICENSE
+author:        Edgar Gomes de Araujo
+maintainer:    Edgar Gomes de Araujo <talktoedgar@gmail.com>
+homepage:
+stability:     Experimental
+synopsis:      3D Convex Hull and Delaunay triangulation generator
+description:
+  3D Convex Hull and Delaunay triangulation generator based on MBC
+  (Marriage Before Conquer).
 
-Flag test
-    Description:        Build the test suite, including an executable to run it.
-    Default:            False
+cabal-version: >=1.8
+build-type:    Simple
+category:      Data, Math
+
+flag test
+  description: Build the test suite, including an executable to run it.
+  default:     False
 
 library
-    ghc-options:     -Wall
-                     -O2
-                     -threaded
-                     -funbox-strict-fields
-                     -fwarn-tabs
-                     -fno-warn-orphans
-                     -fno-warn-unused-do-bind
-    hs-source-dirs:  src
-    Build-Depends:    base        == 4.*
-                    , random      >= 1.0
-                    , containers  >= 0.4
-                    , mtl         >= 2.0
-                    , vector      >= 0.10
-                    , linear-vect == 0.2.*
+  ghc-options:
+    -Wall -O2 -threaded -funbox-strict-fields -fwarn-tabs
+    -fno-warn-orphans -fno-warn-unused-do-bind
 
-    Exposed-modules:    DeUni.DeWall
-                        DeUni.Types
-                        DeUni.GeometricTools
-                        DeUni.FirstSeed
-                        DeUni.Dim2.Base2D
-                        DeUni.Dim3.Base3D
-                        DeUni.Dim2.Delaunay2D
-                        DeUni.Dim3.Delaunay3D
-                        DeUni.Dim3.Hull3D
-                        DeUni.Dim2.ReTri2D
-                        DeUni.Dim3.ReTri3D
+  hs-source-dirs:  src
+  build-depends:
+      base         >=4    && <5
+    , containers   >=0.4
+    , linear-vect  >=0.2  && <0.3
+    , mtl          >=2.0
+    , random       >=1.0
+    , vector       >=0.10
 
-Executable DeUni-check
-    hs-source-dirs:     profile
-    main-is:            Check.hs
-    ghc-options:        -O3
-                        -threaded
-                        -rtsopts
-    if flag(test)
-      Buildable:        True
+  exposed-modules:
+    DeUni.DeWall
+    DeUni.Dim2.Base2D
+    DeUni.Dim2.Delaunay2D
+    DeUni.Dim2.ReTri2D
+    DeUni.Dim3.Base3D
+    DeUni.Dim3.Delaunay3D
+    DeUni.Dim3.Hull3D
+    DeUni.Dim3.ReTri3D
+    DeUni.FirstSeed
+    DeUni.GeometricTools
+    DeUni.Types
 
-      Other-Modules:      CheckCommon
-                        , Check2D
-                        , Check3D
-                        , VTKRender
-                        , RenderSVG
+executable DeUni-check
+  hs-source-dirs: profile
+  main-is:        Check.hs
+  ghc-options:    -O3 -threaded -rtsopts
 
-      build-depends:      DeUni
-                        , base            <= 5
-                        , QuickCheck      >= 2.1
-                        , hammer          == 0.4.*
-                        , containers      >= 0.5
-                        , diagrams-svg    >= 0.3
-                        , diagrams-lib    >= 0.5
-                        , diagrams-core   >= 0.5
-                        , blaze-svg       >= 0.1
-                        , colour          >= 2.3
-                        , blaze-builder   >= 0.3
-                        , bytestring      >= 0.9
-                        , vector          >= 0.9
+  if flag(test)
+    buildable:     True
+    other-modules:
+      Check2D
+      Check3D
+      CheckCommon
+      RenderSVG
+      VTKRender
 
-    else
-      Buildable:        False
+    build-depends:
+        base           <5.0
+      , blaze-builder  >=0.3
+      , blaze-svg      >=0.1
+      , bytestring     >=0.9
+      , colour         >=2.3
+      , containers     >=0.5
+      , DeUni
+      , diagrams-core  >=0.5
+      , diagrams-lib   >=0.5
+      , diagrams-svg   >=0.3
+      , hammer         >=0.4 && <0.5
+      , QuickCheck     >=2.1
+      , vector         >=0.9
 
+  else
+    buildable: False
 
-Executable DeUni-benchmark
-    hs-source-dirs:     profile
-    main-is:            Benchmark.hs
-    ghc-options:        -O3
-                        -threaded
-                        -rtsopts
-    if flag(test)
-      Buildable:        True
+executable DeUni-benchmark
+  hs-source-dirs: profile
+  main-is:        Benchmark.hs
+  ghc-options:    -O3 -threaded -rtsopts
 
-      Other-Modules:    RandomGenerator
+  if flag(test)
+    buildable:     True
+    other-modules: RandomGenerator
+    build-depends:
+        base                    <5.0
+      , criterion               >=0.6
+      , DeUni
+      , hammer                  >=0.4 && <0.5
+      , mersenne-random-pure64  >=0.2
+      , monad-loops             >=0.3
+      , random-fu               >=0.2
+      , random-source           >=0.3
+      , vector                  >=0.9
 
-      build-depends:     DeUni
-                        , base            <= 5
-                        , vector          >= 0.9
-                        , criterion       >= 0.6
-                        , hammer          == 0.4.*
-                        , monad-loops     >= 0.3
-                        , random-source   >= 0.3
-                        , random-fu       >= 0.2
-                        , mersenne-random-pure64 >= 0.2
-
-    else
-      Buildable:        False
+  else
+    buildable: False

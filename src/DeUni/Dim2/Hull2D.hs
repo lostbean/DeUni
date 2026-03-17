@@ -1,31 +1,30 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns #-}
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%| Hull3D |%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module DeUni.Dim3.Hull2D where
 
-import Prelude hiding (null, lookup)
-import Data.List (map, foldl')
 import Control.Applicative ((<$>))
-import Data.Maybe
 import Data.Array.Diff hiding (elems)
+import Data.List (foldl', map)
+import Data.Maybe
+import Prelude hiding (lookup, null)
 
 import Linear.Vect
 
+import DeUni.Dim3.Base2D
+import DeUni.FirstSeed
 import DeUni.GeometricTools
 import DeUni.Types
-import DeUni.FirstSeed
-import DeUni.Dim3.Base2D
 
-
--- | It is not possible to implement convex hull 2D due the subUints
--- are point and therefor can't cross the alpha plane.
+{- | It is not possible to implement convex hull 2D due the subUints
+are point and therefor can't cross the alpha plane.
+-}
 
 {--
 instance Buildable S1 Point2D where
@@ -33,6 +32,5 @@ instance Buildable S1 Point2D where
   buildUnit      = makeFace
   build1stUnit   = makeFirstFace
   getAllSubUnits = extractAllFaceEdges
-  subUnitPos     = edge3DPos 
+  subUnitPos     = edge3DPos
 --}
- 
