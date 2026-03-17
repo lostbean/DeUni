@@ -3,7 +3,7 @@
 module DeUni.FirstSeed (getFirstEdge) where
 
 import Data.Function (on)
-import Data.List (foldl', maximumBy, minimumBy)
+import Data.List (maximumBy, minimumBy)
 import Data.Vector ((!))
 import Prelude
 

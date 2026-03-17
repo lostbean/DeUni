@@ -2,7 +2,6 @@
 
 module DeUni.GeometricTools where
 
-import Data.List (foldl')
 import Prelude
 
 import Linear.Class

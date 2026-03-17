@@ -6,7 +6,6 @@
 
 module DeUni.Dim3.Hull3D where
 
-import Data.List (foldl')
 import Prelude
 
 import Linear.Vect
