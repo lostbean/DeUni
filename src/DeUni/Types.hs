@@ -1,11 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module DeUni.Types where
 
 import Control.Monad.State.Lazy (State)
+import Data.Kind (Type)
 import Data.Set (Set)
 import Data.Vector (Vector, (!))
 import Prelude
@@ -149,18 +151,18 @@ type SetActiveSubUnits simplex v = Set (ActiveSubUnit simplex v)
 type StateMBC simplex v = State (StateVarsMBC simplex v)
 
 class (PointND v) => Buildable simplex v where
-    type Sub simplex :: (* -> *) -> *
+    type Sub simplex :: (Type -> Type) -> Type
     buildUnit :: ActiveSubUnit simplex v -> SetPoint v -> [PointPointer] -> Maybe (simplex v)
     build1stUnit :: Plane v -> SetPoint v -> [PointPointer] -> [PointPointer] -> [PointPointer] -> Maybe (simplex v)
     getAllSubUnits :: SetPoint v -> simplex v -> [ActiveSubUnit simplex v]
     subUnitPos :: BoxPair v -> SetPoint v -> ActiveSubUnit simplex v -> Position
 
 class (LinearMap Double p, DotProd Double p, Show (p Double)) => PointND p where
-    data Box p :: *
-    data Plane p :: *
-    data S0 p :: *
-    data S1 p :: *
-    data S2 p :: *
+    data Box p :: Type
+    data Plane p :: Type
+    data S0 p :: Type
+    data S1 p :: Type
+    data S2 p :: Type
     compS0 :: S0 p -> S0 p -> Ordering
     compS1 :: S1 p -> S1 p -> Ordering
     circumOrigin :: S2 p -> p Double

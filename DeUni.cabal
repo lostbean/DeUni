@@ -21,8 +21,8 @@ flag test
 
 library
   ghc-options:
-    -Wall -O2 -threaded -funbox-strict-fields -fwarn-tabs
-    -fno-warn-orphans -fno-warn-unused-do-bind
+    -Wall -O2 -funbox-strict-fields -fwarn-tabs -fno-warn-orphans
+    -fno-warn-unused-do-bind
 
   hs-source-dirs:  src
   build-depends:
