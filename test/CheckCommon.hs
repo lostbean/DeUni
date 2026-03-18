@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -27,106 +28,134 @@ import DeUni.Types
 
 import VTKRender
 
-runChecker = do
-    let myArgs =
-            Args
-                { replay = Nothing
-                , maxSuccess = 1000
-                , maxDiscardRatio = 5
-                , maxSize = 1000
-                , chatty = True
-                , maxShrinks = 100
-                }
+-- | Standard testing arguments
+myArgs :: Args
+myArgs =
+    Args
+        { replay = Nothing
+        , maxSuccess = 1000
+        , maxDiscardRatio = 10
+        , maxSize = 1000
+        , chatty = True
+        , maxShrinks = 100
+        }
 
-    print "Testing Projection.."
-    quickCheckWith myArgs prop_Projection
-
-    print "Testing Parttition.."
-    quickCheckWith myArgs prop_partition
-
-    print "Testing projAonB idempotency.."
-    quickCheckWith myArgs prop_projAonB_idempotent
-
-    print "Testing projAonB orthogonality.."
-    quickCheckWith myArgs prop_projAonB_orthogonal
-
-    print "Testing powerDist symmetry.."
-    quickCheckWith myArgs prop_powerDist_symmetric
-
-    print "Testing powerDist vs Euclidean.."
-    quickCheckWith myArgs prop_powerDist_euclidean
-
-    print "Testing whichSideOfPlane consistency.."
-    quickCheckWith myArgs prop_whichSideOfPlane_consistency
-
-    print "Testing getMaxDistPoint.."
-    quickCheckWith myArgs prop_getMaxDistPoint
-
-    print "Testing getMaxDistPointOnDir.."
-    quickCheckWith myArgs prop_getMaxDistPointOnDir
-
-    print "Testing compEdge consistency.."
-    quickCheckWith myArgs prop_compEdge_consistent
-
-    print "Testing compFace consistency.."
-    quickCheckWith myArgs prop_compFace_consistent
-
-    print "Testing findMinimunButZero.."
-    quickCheckWith myArgs prop_findMinimunButZero
+-- Arbitrary Instances
 
 instance Arbitrary (Box Point3D) where
-    arbitrary = liftM2 getBox max min
+    arbitrary = liftM2 getBox max_ val_min
       where
-        getBox max min = Box3D{xMax3D = max, xMin3D = min, yMax3D = max, yMin3D = min, zMax3D = max, zMin3D = min}
-        min = choose (-200, -100)
-        max = choose (200, 100)
+        getBox mx mn = Box3D{xMax3D = mx, xMin3D = mn, yMax3D = mx, yMin3D = mn, zMax3D = mx, zMin3D = mn}
+        val_min = choose (-200, -100)
+        max_ = choose (200, 100)
+
+instance Arbitrary (Box Point2D) where
+    arbitrary =
+        let
+            getBoxSqr = liftM2 getBox max_ mn_
+            getBoxRect = do
+                max1 <- max_
+                max2 <- max_
+                min1 <- mn_
+                min2 <- mn_
+                return $ Box2D{xMax2D = max1, xMin2D = min1, yMax2D = max2, yMin2D = min2}
+            getBox mx mn = Box2D{xMax2D = mx, xMin2D = mn, yMax2D = mx, yMin2D = mn}
+            mn_ = frequency [(1, elements [-550, -250]), (2, choose (-550, -250))]
+            max_ = frequency [(1, elements [550, 250]), (2, choose (550, 250))]
+         in
+            oneof [getBoxSqr, getBoxRect]
 
 instance Arbitrary Plane3D where
     arbitrary = do
         nd <- arbitrary
-        dist <- choose (-200, 200)
-        return $ Plane3D nd dist
+        dst <- choose (-200, 200)
+        return $ Plane3D nd dst
 
 instance Arbitrary Vec3D where
     arbitrary = liftM3 Vec3 p p p
       where
         p = choose (-100, 100)
 
-instance (Arbitrary (p Double)) => Arbitrary (WPoint p) where
-    arbitrary = WPoint 0 <$> arbitrary
-
-instance (Arbitrary a) => Arbitrary (Vector a) where
-    arbitrary = Vec.fromList <$> arbitrary
-
 instance Arbitrary Vec2D where
     arbitrary = liftM2 Vec2 p p
       where
         p = choose (-100, 100)
 
+instance (Arbitrary (p Double)) => Arbitrary (WPoint p) where
+    arbitrary = do
+        w <- choose (0, 10)
+        p <- arbitrary
+        return $ WPoint w p
+
+instance Arbitrary (Vector (WPoint Point3D)) where
+    arbitrary = genPointVector
+
+instance Arbitrary (Vector (WPoint Point2D)) where
+    arbitrary = genPointVector
+
+genPointVector :: (Arbitrary Vec2D, Arbitrary Vec3D, PointND p, Arbitrary (p Double), Norm Double p) => Gen (Vector (WPoint p))
+genPointVector = do
+    let
+        wpNormal = arbitrary
+        wpWall = do
+            s <- choose (1, 10)
+            -- This is simplified for the polymorphic version, but we can specialize if needed
+            WPoint s <$> arbitrary
+
+        collinear = do
+            p1 <- arbitrary
+            p2 <- arbitrary
+            -- Using a simplified collinear generator that works for both 2D and 3D
+            let diff = p2 &- p1
+            if normsqr diff < 1e-3
+                then collinear
+                else do
+                    let dir = normalize diff
+                    ts <- replicateM 5 (choose (-100, 100))
+                    let pts = WPoint 0 p1 : [WPoint 0 (p1 &+ (t *& dir)) | t <- ts]
+                    return $ Vec.fromList pts
+
+        coincident = do
+            p <- arbitrary
+            return $ Vec.fromList (replicate 6 (WPoint 0 p))
+
+    frequency
+        [ (70, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n wpNormal))
+        , (10, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n wpWall))
+        , (10, collinear)
+        , (10, coincident)
+        ]
+
 instance Arbitrary (Mat2 Double) where
     arbitrary = liftM2 Mat2 arbitrary arbitrary
 
-error_precisson = (10e-4)
+-- Helper functions
 
-msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
+error_precisson :: Double
+error_precisson = 10e-4
+
+msgFail :: (Testable prop, Show a) => a -> prop -> Property
+msgFail text = counterexample ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
 testIM :: (a -> Property) -> IM.IntMap a -> Property
-testIM test map
-    | IM.null map = err
+testIM test mp
+    | IM.null mp = err
     | otherwise =
-        let (x, xs) = IM.deleteFindMin map
+        let (x, xs) = IM.deleteFindMin mp
          in IM.foldr (\a acc -> acc .&&. test a) (test $ snd x) xs
   where
     err = msgFail "empty output" False
 
 testSet :: (a -> Property) -> S.Set a -> Property
-testSet test set
-    | S.null set = err
+testSet test st
+    | S.null st = err
     | otherwise =
-        let (x, xs) = S.deleteFindMin set
+        let (x, xs) = S.deleteFindMin st
          in S.foldr (\a b -> b .&&. test a) (test x) xs
   where
     err = msgFail "empty output" False
+
+-- Properties
 
 prop_Projection :: Vec3D -> Vec3D -> Property
 prop_Projection a b = msgFail "bad projection" $ c &. b < error_precisson
@@ -190,7 +219,7 @@ prop_getMaxDistPoint plane sP =
         let p = [0 .. Vec.length sP - 1]
          in case getMaxDistPoint plane sP p of
                 Nothing -> property False
-                Just (pMax, dMax) ->
+                Just (_, dMax) ->
                     let dists = map (norm . getProjOnPlane plane . (sP !.)) p
                      in msgFail "Not the max dist point" $ dMax >= maximum dists - error_precisson
 
@@ -201,7 +230,7 @@ prop_getMaxDistPointOnDir dir sP =
             refdir = normalize dir
          in case getMaxDistPointOnDir refdir sP p of
                 Nothing -> property False
-                Just (pMax, dMax) ->
+                Just (_, dMax) ->
                     let dists = map (\x -> norm $ projAonB (sP !. x) refdir) p
                      in msgFail "Not the max dist point on dir" $ dMax >= maximum dists - error_precisson
 

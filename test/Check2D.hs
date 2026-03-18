@@ -5,7 +5,6 @@
 module Check2D where
 
 import qualified Data.IntMap as IM
-import qualified Data.List as L
 import qualified Data.Map as Map
 import qualified Data.Set as S
 import qualified Data.Vector as Vec
@@ -13,12 +12,9 @@ import qualified Data.Vector as Vec
 import Data.IntMap (IntMap)
 import Data.Map (Map)
 import Data.Maybe (isJust)
-import Data.Monoid ((<>))
 import Data.Set (Set)
 import Data.Vector (Vector, (!))
 
-import Control.Applicative
-import Control.Monad
 import Test.QuickCheck
 
 import Linear.Vect
@@ -31,19 +27,10 @@ import DeUni.FirstSeed
 import DeUni.GeometricTools
 import DeUni.Types
 
+import CheckCommon
 import RenderSVG
 
 runChecker = do
-    let myArgs =
-            Args
-                { replay = Nothing
-                , maxSuccess = 1000
-                , maxDiscardRatio = 10
-                , maxSize = 1000
-                , chatty = True
-                , maxShrinks = 100
-                }
-
     print "Testing 1st edge.."
     quickCheckWith myArgs prop_1stEdge
 
@@ -58,78 +45,6 @@ runChecker = do
 
     print "Testing Delaunay with 3 points.."
     quickCheckWith myArgs prop_DelaunayMinPoints
-
-instance Arbitrary (Box Point2D) where
-    arbitrary =
-        let
-            getBoxSqr = liftM2 getBox max min
-            getBoxRect = do
-                max1 <- max
-                max2 <- max
-                min1 <- min
-                min2 <- min
-                return $ Box2D{xMax2D = max1, xMin2D = min1, yMax2D = max2, yMin2D = min2}
-            getBox max min = Box2D{xMax2D = max, xMin2D = min, yMax2D = max, yMin2D = min}
-            min = frequency [(1, elements [-550, -250]), (2, choose (-550, -250))]
-            max = frequency [(1, elements [550, 250]), (2, choose (550, 250))]
-         in
-            oneof [getBoxSqr, getBoxRect]
-
-instance Arbitrary Vec2D where
-    arbitrary = let p = choose (-200, 200) in liftM2 Vec2 p p
-
-instance (Arbitrary (p Double)) => Arbitrary (WPoint p) where
-    arbitrary =
-        let
-            s = choose (1, 10)
-         in
-            liftM2 WPoint s arbitrary
-
-instance Arbitrary (Vector (WPoint Point2D)) where
-    arbitrary =
-        let
-            s = choose (1, 10)
-            vecWall =
-                let
-                    p1 = elements [-200, 200]
-                    p2 = choose (-200, 200)
-                 in
-                    oneof [liftM2 Vec2 p1 p2, liftM2 Vec2 p2 p1]
-            wpWall = frequency [(20, arbitrary), (1, liftM2 WPoint s vecWall)]
-
-            -- Degenerate case generators
-            collinear = do
-                p1 <- arbitrary :: Gen Vec2D
-                p2 <- arbitrary :: Gen Vec2D
-                if vlen (p2 &- p1) < 1e-1
-                    then collinear
-                    else do
-                        let dir = normalize (p2 &- p1)
-                        ts <- replicateM 5 (choose (-100, 100))
-                        let ps = WPoint 0 p1 : [WPoint 0 (p1 &+ (t *& dir)) | t <- ts]
-                        -- Add one point slightly off the line to make it non-degenerate
-                        off <- arbitrary :: Gen Vec2D
-                        let pOff = WPoint 0 (p1 &+ (10 *& dir) &+ (0.1 *& off))
-                        return $ Vec.fromList (pOff : ps)
-
-            coincident = do
-                p <- arbitrary :: Gen Vec2D
-                -- Slightly perturbed coincident points
-                ps <- replicateM 6 $ do
-                    off <- arbitrary :: Gen Vec2D
-                    return $ WPoint 0 (p &+ (0.01 *& off))
-                return $ Vec.fromList ps
-         in
-            frequency
-                [ (70, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n arbitrary))
-                , (10, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n wpWall))
-                , (10, collinear)
-                , (10, coincident)
-                ]
-
-error_precisson = (10e-3)
-
-msgFail text = counterexample ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
 prop_Delaunay :: Box Point2D -> SetPoint Point2D -> Property
 prop_Delaunay box sp = (length ps) > 4 ==> fulltest
@@ -150,26 +65,8 @@ prop_DelaunayMinPoints :: Box Point2D -> (WPoint Vec2, WPoint Vec2, WPoint Vec2)
 prop_DelaunayMinPoints box (p1, p2, p3) =
     let sp = Vec.fromList [p1, p2, p3]
      in (p1 /= p2 && p2 /= p3 && p3 /= p1) ==>
-            let (wall, st) = runDelaunay2D box sp [0, 1, 2]
+            let (wall, _) = runDelaunay2D box sp [0, 1, 2]
              in (IM.size wall == 1) .||. (IM.size wall == 0)
-
-testIM :: (a -> Property) -> IM.IntMap a -> Property
-testIM test map
-    | IM.null map = err
-    | otherwise =
-        let (x, xs) = IM.deleteFindMin map
-         in IM.foldr (\a b -> b .&&. test a) (test $ snd x) xs
-  where
-    err = msgFail "empty output" False
-
-testSet :: (a -> Property) -> S.Set a -> Property
-testSet test set
-    | S.null set = err
-    | otherwise =
-        let (x, xs) = S.deleteFindMin set
-         in S.foldr (\a b -> b .&&. test a) (test x) xs
-  where
-    err = msgFail "empty output" False
 
 prop_CircumCircle :: WPoint Vec2 -> WPoint Vec2 -> WPoint Vec2 -> Property
 prop_CircumCircle a b c = msgFail ("bad center", map (powerDist (WPoint r center)) [a, b, c]) test
@@ -210,8 +107,8 @@ testProperFace sP sigma = msgFail ("non empty sphere", testAllPoints, sigma, sP 
     ps = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     (pA, pB, pC) = face2DPoints sigma
     center = circleCenter sigma
-    radius = circleRadius sigma
-    wC = WPoint radius center
+    rad = circleRadius sigma
+    wC = WPoint rad center
     cleanP = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC)) ps
     -- Test if the CircumSphere is empty
     isSphereOK = null testAllPoints

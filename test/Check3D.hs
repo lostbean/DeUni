@@ -5,14 +5,11 @@
 module Check3D where
 
 import qualified Data.IntMap as IM
-import qualified Data.List as L
 import qualified Data.Map as Map
 import qualified Data.Set as S
 import qualified Data.Vector as Vec
 import qualified Data.Vector.Unboxed as VU
 
-import Control.Applicative
-import Control.Monad
 import Test.QuickCheck
 
 import Data.IntMap (IntMap)
@@ -31,19 +28,10 @@ import DeUni.FirstSeed
 import DeUni.GeometricTools
 import DeUni.Types
 
+import CheckCommon
 import VTKRender
 
 runChecker = do
-    let myArgs =
-            Args
-                { replay = Nothing
-                , maxSuccess = 1000
-                , maxDiscardRatio = 10
-                , maxSize = 1000
-                , chatty = True
-                , maxShrinks = 100
-                }
-
     print "Testing 1st face.."
     quickCheckWith myArgs prop_1stFace
 
@@ -62,101 +50,29 @@ runChecker = do
     print "Testing Delaunay with 4 points.."
     quickCheckWith myArgs prop_DelaunayMinPoints
 
-instance Arbitrary (Box Point3D) where
-    arbitrary =
-        let
-            getBoxSqr = liftM2 getBox max min
-            getBoxRect = do
-                max1 <- max
-                max2 <- max
-                max3 <- max
-                min1 <- min
-                min2 <- min
-                min3 <- min
-                return $ Box3D{xMax3D = max1, xMin3D = min1, yMax3D = max2, yMin3D = min2, zMax3D = max3, zMin3D = min3}
-            getBox max min = Box3D{xMax3D = max, xMin3D = min, yMax3D = max, yMin3D = min, zMax3D = max, zMin3D = min}
-            min = frequency [(1, elements [-550, -250]), (2, choose (-550, -250))]
-            max = frequency [(1, elements [550, 250]), (2, choose (550, 250))]
-         in
-            oneof [getBoxSqr, getBoxRect]
-
-instance Arbitrary Vec3D where
-    arbitrary = let p = choose (-200, 200) in liftM3 Vec3 p p p
-
-instance (Arbitrary (p Double)) => Arbitrary (WPoint p) where
-    arbitrary =
-        let
-            s = choose (1, 10)
-         in
-            liftM2 WPoint s arbitrary
-
-instance Arbitrary (Vector (WPoint Point3D)) where
-    arbitrary =
-        let
-            s = choose (1, 10)
-            vecWall =
-                let
-                    p1 = elements [-200, 200]
-                    p2 = choose (-200, 200)
-                 in
-                    oneof
-                        [ liftM3 Vec3 p1 p2 p2
-                        , liftM3 Vec3 p2 p1 p2
-                        , liftM3 Vec3 p2 p2 p1
-                        ]
-            wpWall = frequency [(20, arbitrary), (1, liftM2 WPoint s vecWall)]
-
-            -- Degenerate case generators
-            collinear = do
-                p1 <- arbitrary :: Gen Vec3D
-                p2 <- arbitrary :: Gen Vec3D
-                if vlen (p2 &- p1) < 1e-1
-                    then collinear
-                    else do
-                        let dir = normalize (p2 &- p1)
-                        ts <- replicateM 5 (choose (-100, 100))
-                        let ps = WPoint 0 p1 : [WPoint 0 (p1 &+ (t *& dir)) | t <- ts]
-                        -- Add one point slightly off the line to make it non-degenerate
-                        off <- arbitrary :: Gen Vec3D
-                        let pOff = WPoint 0 (p1 &+ (10 *& dir) &+ (0.1 *& off))
-                        return $ Vec.fromList (pOff : ps)
-
-            coincident = do
-                p <- arbitrary :: Gen Vec3D
-                -- Slightly perturbed coincident points
-                ps <- replicateM 6 $ do
-                    off <- arbitrary :: Gen Vec3D
-                    return $ WPoint 0 (p &+ (0.01 *& off))
-                return $ Vec.fromList ps
-         in
-            frequency
-                [ (70, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n arbitrary))
-                , (10, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n wpWall))
-                , (10, collinear)
-                , (10, coincident)
-                ]
-
-error_precisson = (10e-2)
-
-msgFail text = counterexample ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
-
 plotFail :: (Testable prop) => FilePath -> SetPoint Point3D -> a -> prop -> Property
-plotFail _ _ _ = property
+plotFail file sp obj test =
+    let
+        pts :: VU.Vector (Vec3 Double)
+        pts = Vec.convert $ Vec.map point sp
+     in
+        whenFail (writeVTKfile file pts obj) test
 
 prop_ConvHull :: Box Point3D -> SetPoint Point3D -> Property
-prop_ConvHull box sp = (length ps) > 4 ==> fulltest
+prop_ConvHull box sp = (length ps) > 4 ==> plotFail "Hull3D_err.vtu" sp hull fulltest
   where
     fulltest = testHull .&&. testClosure .&&. testSize
     (hull, st) = runHull3D box sp ixps
     testh x = testHullFace sp x
     testHull = testIM testh hull
     testSize = msgFail "gen obj /= num add" $ IM.size hull == count st
-    testClosure = msgFail "open Hull" $ (S.null . externalFaces) st
+    testCloVal = msgFail "open Hull" $ (S.null . externalFaces) st
+    testClosure = testCloVal
     ixps = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
     ps = Vec.toList sp
 
 prop_Delaunay :: Box Point3D -> SetPoint Point3D -> Property
-prop_Delaunay box sp = (length ps) > 4 ==> fulltest
+prop_Delaunay box sp = (length ps) > 4 ==> plotFail "Delaunay3D_err.vtu" sp wall fulltest
   where
     fulltest = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay3D box sp ixps
@@ -173,26 +89,8 @@ prop_DelaunayMinPoints :: Box Point3D -> (WPoint Point3D, WPoint Point3D, WPoint
 prop_DelaunayMinPoints box (p1, p2, p3, p4) =
     let sp = Vec.fromList [p1, p2, p3, p4]
      in (p1 /= p2 && p2 /= p3 && p3 /= p4 && p1 /= p4) ==>
-            let (wall, st) = runDelaunay3D box sp [0, 1, 2, 3]
+            let (wall, _) = runDelaunay3D box sp [0, 1, 2, 3]
              in (IM.size wall == 1) .||. (IM.size wall == 0)
-
-testIM :: (a -> Property) -> IM.IntMap a -> Property
-testIM test map
-    | IM.null map = err
-    | otherwise =
-        let (x, xs) = IM.deleteFindMin map
-         in IM.foldr (\a b -> b .&&. test a) (test $ snd x) xs
-  where
-    err = msgFail "empty output" False
-
-testSet :: (a -> Property) -> S.Set a -> Property
-testSet test set
-    | S.null set = err
-    | otherwise =
-        let (x, xs) = S.deleteFindMin set
-         in S.foldr (\a b -> b .&&. test a) (test x) xs
-  where
-    err = msgFail "empty output" False
 
 prop_CircumSphere :: WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> WPoint Point3D -> Property
 prop_CircumSphere a b c d = msgFail "bad center" test
@@ -233,8 +131,8 @@ testProperTetrahedron sP sigma = msgFail ("non empty sphere", testAllPoints, sig
     ps = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     (pA, pB, pC, pD) = tetraPoints sigma
     center = circumSphereCenter sigma
-    radius = circumRadius sigma
-    wC = WPoint radius center
+    rad = circumRadius sigma
+    wC = WPoint rad center
     cleanP = filter (\i -> (i /= pA) && (i /= pB) && (i /= pC) && (i /= pD)) ps
     -- Test if the CircumSphere is empty
     isSphereOK = null testAllPoints

@@ -15,10 +15,6 @@ cabal-version: >=1.8
 build-type:    Simple
 category:      Data, Math
 
-flag test
-  description: Build the test suite, including an executable to run it.
-  default:     False
-
 library
   ghc-options:
     -Wall -O2 -funbox-strict-fields -fwarn-tabs -fno-warn-orphans
@@ -46,59 +42,49 @@ library
     DeUni.GeometricTools
     DeUni.Types
 
-executable DeUni-check
-  hs-source-dirs: profile
-  main-is:        Check.hs
-  ghc-options:    -O3 -threaded -rtsopts
+test-suite DeUni-test
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Spec.hs
+  ghc-options:    -Wall -threaded -rtsopts -with-rtsopts=-N
+  other-modules:
+    Check2D
+    Check3D
+    CheckCommon
+    RenderSVG
+    VTKRender
 
-  if flag(test)
-    buildable:     True
-    other-modules:
-      Check2D
-      Check3D
-      CheckCommon
-      RenderSVG
-      VTKRender
-
-    build-depends:
-        base           <5.0
-      , blaze-builder  >=0.3
-      , blaze-svg      >=0.1
-      , bytestring     >=0.9
-      , colour         >=2.3
-      , containers     >=0.5
-      , DeUni
-      , diagrams-core  >=0.5
-      , diagrams-lib   >=0.5
-      , diagrams-svg   >=0.3
-      , hammer         >=0.4 && <0.5
-      , linear-vect
-      , QuickCheck     >=2.1
-      , svg-builder
-      , text
-      , vector         >=0.9
-
-  else
-    buildable: False
+  build-depends:
+      base           >=4   && <5
+    , blaze-builder  >=0.3
+    , blaze-svg      >=0.1
+    , bytestring     >=0.9
+    , colour         >=2.3
+    , containers     >=0.5
+    , DeUni
+    , diagrams-core  >=0.5
+    , diagrams-lib   >=0.5
+    , diagrams-svg   >=0.3
+    , hammer         >=0.4 && <0.5
+    , hspec          >=2.0
+    , linear-vect
+    , QuickCheck     >=2.1
+    , svg-builder
+    , text
+    , vector         >=0.9
 
 executable DeUni-benchmark
   hs-source-dirs: profile
   main-is:        Benchmark.hs
   ghc-options:    -O3 -threaded -rtsopts
-
-  if flag(test)
-    buildable:     True
-    other-modules: RandomGenerator
-    build-depends:
-        base                    <5.0
-      , criterion               >=0.6
-      , DeUni
-      , hammer                  >=0.4 && <0.5
-      , mersenne-random-pure64  >=0.2
-      , monad-loops             >=0.3
-      , random-fu               >=0.2
-      , random-source           >=0.3
-      , vector                  >=0.9
-
-  else
-    buildable: False
+  other-modules:  RandomGenerator
+  build-depends:
+      base                    >=4   && <5
+    , criterion               >=0.6
+    , DeUni
+    , hammer                  >=0.4 && <0.5
+    , mersenne-random-pure64  >=0.2
+    , monad-loops             >=0.3
+    , random-fu               >=0.2
+    , random-source           >=0.3
+    , vector                  >=0.9
