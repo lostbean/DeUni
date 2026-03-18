@@ -35,6 +35,7 @@
             pkgs.zlib
             treefmtWrapper.config.build.wrapper
             pkgs.nixpkgs-fmt
+            pkgs.lefthook
           ];
 
           shellHook = ''

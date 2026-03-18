@@ -21,16 +21,17 @@ The MBC algorithm is a divide-and-conquer strategy for constructing Delaunay tri
 
 1. **Divide:** A cutting plane bisects the bounding box along its longest axis, partitioning all points into two half-spaces (B1 and B2).
 
-2. **Marry:** Simplices that cross the cutting plane (the "alpha" set) are constructed first. Starting from an initial seed simplex found via `FirstSeed`, the algorithm builds all simplices whose sub-units (edges in 2D, faces in 3D) straddle the plane. Each new simplex's sub-units are classified into three Active Face Lists (AFLs):
+1. **Marry:** Simplices that cross the cutting plane (the "alpha" set) are constructed first. Starting from an initial seed simplex found via `FirstSeed`, the algorithm builds all simplices whose sub-units (edges in 2D, faces in 3D) straddle the plane. Each new simplex's sub-units are classified into three Active Face Lists (AFLs):
+
    - `aflAlpha` -- sub-units crossing the cutting plane (processed next)
    - `aflBox1` -- sub-units entirely in half-space B1
    - `aflBox2` -- sub-units entirely in half-space B2
 
    A sub-unit appearing twice in an AFL is removed (it is shared by two simplices and therefore closed).
 
-3. **Conquer:** Once all alpha simplices are built, the algorithm recurses into B1 with `aflBox1` and into B2 with `aflBox2`. Each recursive call re-bisects its sub-box and repeats.
+1. **Conquer:** Once all alpha simplices are built, the algorithm recurses into B1 with `aflBox1` and into B2 with `aflBox2`. Each recursive call re-bisects its sub-box and repeats.
 
-4. **Termination:** Recursion ends when the AFL is empty and no further simplices can be constructed.
+1. **Termination:** Recursion ends when the AFL is empty and no further simplices can be constructed.
 
 ### Circumsphere / Circumcircle computation
 
@@ -53,6 +54,7 @@ The main entry point. Re-exports all other modules and provides the top-level AP
 | `reRun` | -- | Re-run MBC with a pre-existing state and a new set of active faces |
 
 Type aliases:
+
 - `SetSimplex2D = IntMap (S2 Vec2)` -- a map of 2D triangles
 - `SetSimplex3D = IntMap (S2 Vec3)` -- a map of 3D tetrahedra
 - `SetFace3D = IntMap (S1 Vec3)` -- a map of 3D triangular faces (hull)
