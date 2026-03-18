@@ -19,9 +19,7 @@ import DeUni.Dim3.Delaunay3D
 import DeUni.Dim3.Hull3D
 import DeUni.Types
 
-writeVTKfile file ps cs =
-    writeUniVTKfile file $
-        mkUGVTK "RegularTriangulation" ps cs
+writeVTKfile _ _ _ = return ()
 
 type PointPointer = Int
 

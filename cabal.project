@@ -1,0 +1,17 @@
+packages: .
+
+source-repository-package
+  type: git
+  location: https://github.com/lostbean/linear-vect
+
+source-repository-package
+  type: git
+  location: https://github.com/lostbean/hammer
+
+source-repository-package
+  type: git
+  location: https://github.com/lostbean/vtk
+
+source-repository-package
+  type: git
+  location: https://github.com/lostbean/mcl

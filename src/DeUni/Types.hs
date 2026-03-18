@@ -12,12 +12,18 @@ import Data.Set (Set)
 import Data.Vector (Vector, (!))
 import Prelude
 
+import Linear.Mat
 import Linear.Vect
 
 -- =================================================================================================
 
 -- | Define a point in 2D and 3D
 type PointPointer = Int
+
+type Point2D = Vec2
+type Point3D = Vec3
+type Plane2D = Plane Vec2
+type Plane3D = Plane Vec3
 
 {- | Create a structure for face (Triangles in the case of 3D DT) and store the orientation
   of the face related to the previous generated simplex that create the face.

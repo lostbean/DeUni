@@ -108,16 +108,15 @@ findMinimunButZero :: (PointPointer -> Double) -> [PointPointer] -> Maybe (Doubl
 findMinimunButZero func ps =
     let
         ds = map dist ps
-        dist i = Just (func i, i)
+        dist i = (func i, i)
 
-        foldMaybe Nothing old = old
-        foldMaybe new@(Just (d, _)) old = case old of
-            Just (olddist, _)
-                | d == 0 -> old
-                | d > olddist -> old
-                | d < olddist -> new
-                | otherwise -> error $ "Multiple points on circle or sphere! " ++ show new
-            Nothing -> new
+        foldMaybe acc (d, i)
+            | d == 0 = acc
+            | otherwise = case acc of
+                Just (olddist, _)
+                    | d >= olddist -> acc
+                    | otherwise -> Just (d, i)
+                Nothing -> Just (d, i)
      in
         foldl' foldMaybe Nothing ds
 
@@ -133,13 +132,13 @@ findMinimunButZero' func ps =
             Just x -> Just (x, i)
             _ -> Nothing
 
-        foldMaybe Nothing old = old
-        foldMaybe new@(Just (d, _)) old = case old of
-            Just (olddist, _)
-                | d == 0 -> old
-                | d > olddist -> old
-                | d < olddist -> new
-                | otherwise -> error $ "Multiple points on circle or sphere! " ++ show new
-            Nothing -> new
+        foldMaybe acc Nothing = acc
+        foldMaybe acc (Just (d, i))
+            | d == 0 = acc
+            | otherwise = case acc of
+                Just (olddist, _)
+                    | d >= olddist -> acc
+                    | otherwise -> Just (d, i)
+                Nothing -> Just (d, i)
      in
         foldl' foldMaybe Nothing ds

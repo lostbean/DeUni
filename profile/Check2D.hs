@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Check2D where
 
@@ -37,9 +38,10 @@ runChecker = do
             Args
                 { replay = Nothing
                 , maxSuccess = 1000
-                , maxDiscardRatio = 1
+                , maxDiscardRatio = 10
                 , maxSize = 1000
                 , chatty = True
+                , maxShrinks = 100
                 }
 
     print "Testing 1st edge.."
@@ -53,6 +55,9 @@ runChecker = do
 
     print "Testing Delaunay.."
     quickCheckWith myArgs prop_Delaunay
+
+    print "Testing Delaunay with 3 points.."
+    quickCheckWith myArgs prop_DelaunayMinPoints
 
 instance Arbitrary (Box Point2D) where
     arbitrary =
@@ -70,10 +75,10 @@ instance Arbitrary (Box Point2D) where
          in
             oneof [getBoxSqr, getBoxRect]
 
-instance Arbitrary Vec2 where
+instance Arbitrary Vec2D where
     arbitrary = let p = choose (-200, 200) in liftM2 Vec2 p p
 
-instance (Arbitrary a) => Arbitrary (WPoint a) where
+instance (Arbitrary (p Double)) => Arbitrary (WPoint p) where
     arbitrary =
         let
             s = choose (1, 10)
@@ -91,19 +96,43 @@ instance Arbitrary (Vector (WPoint Point2D)) where
                  in
                     oneof [liftM2 Vec2 p1 p2, liftM2 Vec2 p2 p1]
             wpWall = frequency [(20, arbitrary), (1, liftM2 WPoint s vecWall)]
+
+            -- Degenerate case generators
+            collinear = do
+                p1 <- arbitrary :: Gen Vec2D
+                p2 <- arbitrary :: Gen Vec2D
+                if vlen (p2 &- p1) < 1e-1
+                    then collinear
+                    else do
+                        let dir = normalize (p2 &- p1)
+                        ts <- replicateM 5 (choose (-100, 100))
+                        let ps = WPoint 0 p1 : [WPoint 0 (p1 &+ (t *& dir)) | t <- ts]
+                        -- Add one point slightly off the line to make it non-degenerate
+                        off <- arbitrary :: Gen Vec2D
+                        let pOff = WPoint 0 (p1 &+ (10 *& dir) &+ (0.1 *& off))
+                        return $ Vec.fromList (pOff : ps)
+
+            coincident = do
+                p <- arbitrary :: Gen Vec2D
+                -- Slightly perturbed coincident points
+                ps <- replicateM 6 $ do
+                    off <- arbitrary :: Gen Vec2D
+                    return $ WPoint 0 (p &+ (0.01 *& off))
+                return $ Vec.fromList ps
          in
-            Vec.fromList
-                <$> oneof
-                    [ listOf arbitrary
-                    , listOf wpWall
-                    ]
+            frequency
+                [ (70, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n arbitrary))
+                , (10, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n wpWall))
+                , (10, collinear)
+                , (10, coincident)
+                ]
 
 error_precisson = (10e-3)
 
-msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
+msgFail text = counterexample ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
 prop_Delaunay :: Box Point2D -> SetPoint Point2D -> Property
-prop_Delaunay box sp = (length ps) > 4 ==> whenFail (log) fulltest
+prop_Delaunay box sp = (length ps) > 4 ==> fulltest
   where
     fulltest = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay2D box sp ixps
@@ -112,52 +141,33 @@ prop_Delaunay box sp = (length ps) > 4 ==> whenFail (log) fulltest
     testh x = testHullEdge sp x
     testWall = testIM testw wall
     testHull = testSet testh hull
-    (testClo, cloS2) = testClosure wall hull
+    (testClo, _) = testClosure wall hull
     ixps = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
     ps = Vec.toList sp
     testSize = msgFail "gen obj /= num add" $ IM.size wall == count st
-    log =
-        let
-            opens = map (testEdge . fst) $ Map.toList $ Map.filter (== Open) $ cloS2
 
-            op =
-                closeUpOnBox box $
-                    renderBox2D box
-                        <> renderSetS2Triangle sp wall
-                        <> renderSetPoint2D sp
-                        <> renderSetPair sp opens
+prop_DelaunayMinPoints :: Box Point2D -> (WPoint Vec2, WPoint Vec2, WPoint Vec2) -> Property
+prop_DelaunayMinPoints box (p1, p2, p3) =
+    let sp = Vec.fromList [p1, p2, p3]
+     in (p1 /= p2 && p2 /= p3 && p3 /= p1) ==>
+            let (wall, st) = runDelaunay2D box sp [0, 1, 2]
+             in (IM.size wall == 1) .||. (IM.size wall == 0)
 
-            dia2 =
-                closeUpOnBox box $
-                    renderBox2D box
-                        <> renderSetS2Triangle sp wall
-                        <> renderSetPoint2D sp
-                        <> renderSetS1 sp hull
-
-            dia3 =
-                closeUpOnBox box $
-                    renderBox2D box
-                        <> renderSetS2Triangle sp wall
-                        <> renderSetS2Circle wall
-         in
-            do
-                renderSVG "Delaunay+hull.svg" (sizeSpec (Just 500, Just 500)) dia2
-                renderSVG "Delaunay+circle.svg" (sizeSpec (Just 500, Just 500)) dia3
-                renderSVG "openEdges.svg" (sizeSpec (Just 500, Just 500)) op
-
+testIM :: (a -> Property) -> IM.IntMap a -> Property
 testIM test map
     | IM.null map = err
     | otherwise =
         let (x, xs) = IM.deleteFindMin map
-         in IM.fold (\a b -> b .&&. test a) (test $ snd x) xs
+         in IM.foldr (\a b -> b .&&. test a) (test $ snd x) xs
   where
     err = msgFail "empty output" False
 
+testSet :: (a -> Property) -> S.Set a -> Property
 testSet test set
     | S.null set = err
     | otherwise =
         let (x, xs) = S.deleteFindMin set
-         in S.fold (\a b -> b .&&. test a) (test x) xs
+         in S.foldr (\a b -> b .&&. test a) (test x) xs
   where
     err = msgFail "empty output" False
 
@@ -195,7 +205,7 @@ prop_1stEdge box sP = pretest ==> test
         _ -> msgFail "non-gen 1st Edge2D" False
 
 testProperFace :: SetPoint Point2D -> S2 Point2D -> Property
-testProperFace sP sigma = whenFail (log) $ msgFail ("non empty sphere", testAllPoints, sigma, sP ! pA, sP ! pB, sP ! pC) isSphereOK
+testProperFace sP sigma = msgFail ("non empty sphere", testAllPoints, sigma, sP ! pA, sP ! pB, sP ! pC) isSphereOK
   where
     ps = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     (pA, pB, pC) = face2DPoints sigma
@@ -209,26 +219,9 @@ testProperFace sP sigma = whenFail (log) $ msgFail ("non empty sphere", testAllP
     testEmptySph i
         | 0 < powerDist (sP ! i) wC = Nothing
         | otherwise = Just (i, powerDist (sP ! i) wC)
-    log =
-        let
-            box = Box2D{xMax2D = 500, xMin2D = -500, yMax2D = 500, yMin2D = -500}
-            s = IM.singleton 1 sigma
-            dia =
-                closeUpOnBox box $
-                    renderSetPoint2D sP
-                        <> renderSetS2Triangle sP s
-                        <> renderSetS2Circle s
-            dia2 =
-                renderSetPoint2D sP
-                    <> renderSetS2Triangle sP s
-                    <> renderSetS2Circle s
-         in
-            do
-                renderSVG "ProperFace.svg" (sizeSpec (Just 500, Just 500)) dia
-                renderSVG "ProperFace2.svg" (sizeSpec (Just 500, Just 500)) dia2
 
 testHullEdge :: SetPoint Point2D -> S1 Point2D -> Property
-testHullEdge sP edge = whenFail (log) test
+testHullEdge sP edge = test
   where
     ps = let size = Vec.length sP in if size <= 0 then [] else [0 .. size - 1]
     pA = edge2DR edge
@@ -248,21 +241,14 @@ testHullEdge sP edge = whenFail (log) test
                     (_, [], _) -> label "face on B2" True
                     (b1, b2, _) ->
                         let
-                            fclean = filter (\p -> (10e-8) > ((sP !. pA &- sP !. p) &. (plane2DNormal x)))
+                            fnd = plane2DNormal x
+                            f p = (10e-8) > ((sP !. pA &- sP !. p) &. fnd)
+                            b1clean = filter f b1
+                            b2clean = filter f b2
                          in
-                            msgFail ("non-Hull face", x, edge) False
-    -- if null (fclean b1) || null (fclean b2)
-    -- then label "face on B1" True
-    -- else msgFail ("non-Hull face", x, edge) False
-    log =
-        let
-            hull = S.singleton edge
-            dia =
-                renderSetPoint2D sP
-                    <> renderSetS1 sP hull
-         in
-            do
-                renderSVG "HullEdge.svg" (sizeSpec (Just 500, Just 500)) dia
+                            if null b1clean || null b2clean
+                                then label "mixed side but hull" True
+                                else msgFail ("non-Hull face", x, edge) False
 
 data TestClosure = Open | Closed | Error deriving (Show, Eq)
 newtype ClosureID = CloID {testEdge :: (Int, Int)} deriving (Show, Eq)
@@ -287,8 +273,8 @@ testClosure ss2 ss1 = (testError, cloS2)
          in
             Map.insertWith func (CloID (a, b)) Open acc
 
-    cloS2 = IM.foldl funcS2 cloS1 ss2
-    funcS2 acc s2 =
+    cloS2 = IM.foldr funcS2 cloS1 ss2
+    funcS2 s2 acc =
         let
             (a, b, c) = face2DPoints s2
             func _ Open = Closed

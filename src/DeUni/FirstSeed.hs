@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module DeUni.FirstSeed (getFirstEdge) where
+module DeUni.FirstSeed (getFirstEdge, getMaxDistPoint, getMaxDistPointOnDir) where
 
 import Data.Function (on)
 import Data.List (maximumBy, minimumBy)

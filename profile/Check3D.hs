@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Check3D where
 
@@ -8,6 +9,7 @@ import qualified Data.List as L
 import qualified Data.Map as Map
 import qualified Data.Set as S
 import qualified Data.Vector as Vec
+import qualified Data.Vector.Unboxed as VU
 
 import Control.Applicative
 import Control.Monad
@@ -36,9 +38,10 @@ runChecker = do
             Args
                 { replay = Nothing
                 , maxSuccess = 1000
-                , maxDiscardRatio = 1
+                , maxDiscardRatio = 10
                 , maxSize = 1000
                 , chatty = True
+                , maxShrinks = 100
                 }
 
     print "Testing 1st face.."
@@ -55,6 +58,9 @@ runChecker = do
 
     print "Testing Delaunay.."
     quickCheckWith myArgs prop_Delaunay
+
+    print "Testing Delaunay with 4 points.."
+    quickCheckWith myArgs prop_DelaunayMinPoints
 
 instance Arbitrary (Box Point3D) where
     arbitrary =
@@ -74,10 +80,10 @@ instance Arbitrary (Box Point3D) where
          in
             oneof [getBoxSqr, getBoxRect]
 
-instance Arbitrary Vec3 where
+instance Arbitrary Vec3D where
     arbitrary = let p = choose (-200, 200) in liftM3 Vec3 p p p
 
-instance (Arbitrary a) => Arbitrary (WPoint a) where
+instance (Arbitrary (p Double)) => Arbitrary (WPoint p) where
     arbitrary =
         let
             s = choose (1, 10)
@@ -99,25 +105,46 @@ instance Arbitrary (Vector (WPoint Point3D)) where
                         , liftM3 Vec3 p2 p2 p1
                         ]
             wpWall = frequency [(20, arbitrary), (1, liftM2 WPoint s vecWall)]
+
+            -- Degenerate case generators
+            collinear = do
+                p1 <- arbitrary :: Gen Vec3D
+                p2 <- arbitrary :: Gen Vec3D
+                if vlen (p2 &- p1) < 1e-1
+                    then collinear
+                    else do
+                        let dir = normalize (p2 &- p1)
+                        ts <- replicateM 5 (choose (-100, 100))
+                        let ps = WPoint 0 p1 : [WPoint 0 (p1 &+ (t *& dir)) | t <- ts]
+                        -- Add one point slightly off the line to make it non-degenerate
+                        off <- arbitrary :: Gen Vec3D
+                        let pOff = WPoint 0 (p1 &+ (10 *& dir) &+ (0.1 *& off))
+                        return $ Vec.fromList (pOff : ps)
+
+            coincident = do
+                p <- arbitrary :: Gen Vec3D
+                -- Slightly perturbed coincident points
+                ps <- replicateM 6 $ do
+                    off <- arbitrary :: Gen Vec3D
+                    return $ WPoint 0 (p &+ (0.01 *& off))
+                return $ Vec.fromList ps
          in
-            Vec.fromList
-                <$> oneof
-                    [ listOf arbitrary
-                    , listOf wpWall
-                    ]
+            frequency
+                [ (70, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n arbitrary))
+                , (10, Vec.fromList <$> (choose (5, 20) >>= \n -> replicateM n wpWall))
+                , (10, collinear)
+                , (10, coincident)
+                ]
 
 error_precisson = (10e-2)
 
-msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
+msgFail text = counterexample ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
-plotFail file sp obj =
-    let
-        ps = Vec.convert $ Vec.map point sp
-     in
-        whenFail (writeVTKfile file ps obj)
+plotFail :: (Testable prop) => FilePath -> SetPoint Point3D -> a -> prop -> Property
+plotFail _ _ _ = property
 
 prop_ConvHull :: Box Point3D -> SetPoint Point3D -> Property
-prop_ConvHull box sp = (length ps) > 4 ==> plotFail "Hull3D_err.vtu" sp hull fulltest
+prop_ConvHull box sp = (length ps) > 4 ==> fulltest
   where
     fulltest = testHull .&&. testClosure .&&. testSize
     (hull, st) = runHull3D box sp ixps
@@ -129,7 +156,7 @@ prop_ConvHull box sp = (length ps) > 4 ==> plotFail "Hull3D_err.vtu" sp hull ful
     ps = Vec.toList sp
 
 prop_Delaunay :: Box Point3D -> SetPoint Point3D -> Property
-prop_Delaunay box sp = (length ps) > 4 ==> plotFail "Delaunay3D_err.vtu" sp wall fulltest
+prop_Delaunay box sp = (length ps) > 4 ==> fulltest
   where
     fulltest = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay3D box sp ixps
@@ -142,19 +169,28 @@ prop_Delaunay box sp = (length ps) > 4 ==> plotFail "Delaunay3D_err.vtu" sp wall
     ps = Vec.toList sp
     testSize = msgFail "gen obj /= num add" $ IM.size wall == count st
 
+prop_DelaunayMinPoints :: Box Point3D -> (WPoint Point3D, WPoint Point3D, WPoint Point3D, WPoint Point3D) -> Property
+prop_DelaunayMinPoints box (p1, p2, p3, p4) =
+    let sp = Vec.fromList [p1, p2, p3, p4]
+     in (p1 /= p2 && p2 /= p3 && p3 /= p4 && p1 /= p4) ==>
+            let (wall, st) = runDelaunay3D box sp [0, 1, 2, 3]
+             in (IM.size wall == 1) .||. (IM.size wall == 0)
+
+testIM :: (a -> Property) -> IM.IntMap a -> Property
 testIM test map
     | IM.null map = err
     | otherwise =
         let (x, xs) = IM.deleteFindMin map
-         in IM.fold (\a b -> b .&&. test a) (test $ snd x) xs
+         in IM.foldr (\a b -> b .&&. test a) (test $ snd x) xs
   where
     err = msgFail "empty output" False
 
+testSet :: (a -> Property) -> S.Set a -> Property
 testSet test set
     | S.null set = err
     | otherwise =
         let (x, xs) = S.deleteFindMin set
-         in S.fold (\a b -> b .&&. test a) (test x) xs
+         in S.foldr (\a b -> b .&&. test a) (test x) xs
   where
     err = msgFail "empty output" False
 
@@ -175,12 +211,7 @@ prop_1stSimplex box sP = pretest ==> test
     p2 = (pointsOnB2 pp) ++ (pointsOnPlane pp)
     pretest = (length p) > 4 && p1 /= [] && p2 /= []
     test = case makeFirstSimplex plane sP p1 p2 p of
-        Just sigma ->
-            let
-                wall = IM.singleton 1 sigma
-                test = testProperTetrahedron sP sigma
-             in
-                plotFail "1stSimplex_err.vtu" sP wall test
+        Just sigma -> testProperTetrahedron sP sigma
         _ -> msgFail "non-gen 1st Tetra3D" False
 
 prop_1stFace :: Box Point3D -> SetPoint Point3D -> Property
@@ -265,8 +296,8 @@ testClosure ss2 ss1 = testError
          in
             Map.insertWith func face Open acc
 
-    cloS2 = IM.foldl funcS2 cloS1 ss2
-    funcS2 acc s2 =
+    cloS2 = IM.foldr funcS2 cloS1 ss2
+    funcS2 s2 acc =
         let
             (a, b, c, d) = tetraPoints s2
             func _ Open = Closed

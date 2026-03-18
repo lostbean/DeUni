@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module CheckCommon where
 
@@ -14,11 +15,13 @@ import Control.Applicative
 import Control.Monad
 import Test.QuickCheck
 
+import Linear.Mat
 import Linear.Vect
 
 import DeUni.DeWall
 import DeUni.Dim2.ReTri2D
 import DeUni.Dim3.Base3D
+import DeUni.FirstSeed
 import DeUni.GeometricTools
 import DeUni.Types
 
@@ -32,6 +35,7 @@ runChecker = do
                 , maxDiscardRatio = 5
                 , maxSize = 1000
                 , chatty = True
+                , maxShrinks = 100
                 }
 
     print "Testing Projection.."
@@ -40,6 +44,36 @@ runChecker = do
     print "Testing Parttition.."
     quickCheckWith myArgs prop_partition
 
+    print "Testing projAonB idempotency.."
+    quickCheckWith myArgs prop_projAonB_idempotent
+
+    print "Testing projAonB orthogonality.."
+    quickCheckWith myArgs prop_projAonB_orthogonal
+
+    print "Testing powerDist symmetry.."
+    quickCheckWith myArgs prop_powerDist_symmetric
+
+    print "Testing powerDist vs Euclidean.."
+    quickCheckWith myArgs prop_powerDist_euclidean
+
+    print "Testing whichSideOfPlane consistency.."
+    quickCheckWith myArgs prop_whichSideOfPlane_consistency
+
+    print "Testing getMaxDistPoint.."
+    quickCheckWith myArgs prop_getMaxDistPoint
+
+    print "Testing getMaxDistPointOnDir.."
+    quickCheckWith myArgs prop_getMaxDistPointOnDir
+
+    print "Testing compEdge consistency.."
+    quickCheckWith myArgs prop_compEdge_consistent
+
+    print "Testing compFace consistency.."
+    quickCheckWith myArgs prop_compFace_consistent
+
+    print "Testing findMinimunButZero.."
+    quickCheckWith myArgs prop_findMinimunButZero
+
 instance Arbitrary (Box Point3D) where
     arbitrary = liftM2 getBox max min
       where
@@ -47,48 +81,54 @@ instance Arbitrary (Box Point3D) where
         min = choose (-200, -100)
         max = choose (200, 100)
 
-instance Arbitrary Vec3 where
+instance Arbitrary Plane3D where
+    arbitrary = do
+        nd <- arbitrary
+        dist <- choose (-200, 200)
+        return $ Plane3D nd dist
+
+instance Arbitrary Vec3D where
     arbitrary = liftM3 Vec3 p p p
       where
         p = choose (-100, 100)
 
-instance (Arbitrary a) => Arbitrary (WPoint a) where
+instance (Arbitrary (p Double)) => Arbitrary (WPoint p) where
     arbitrary = WPoint 0 <$> arbitrary
 
 instance (Arbitrary a) => Arbitrary (Vector a) where
     arbitrary = Vec.fromList <$> arbitrary
 
-instance Arbitrary Vec2 where
+instance Arbitrary Vec2D where
     arbitrary = liftM2 Vec2 p p
       where
         p = choose (-100, 100)
 
-instance Arbitrary Mat2 where
+instance Arbitrary (Mat2 Double) where
     arbitrary = liftM2 Mat2 arbitrary arbitrary
 
 error_precisson = (10e-4)
 
 msgFail text = printTestCase ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
-testIM :: (a -> Gen Prop) -> IM.IntMap a -> Gen Prop
+testIM :: (a -> Property) -> IM.IntMap a -> Property
 testIM test map
     | IM.null map = err
     | otherwise =
         let (x, xs) = IM.deleteFindMin map
-         in IM.fold (\a acc -> acc .&&. test a) (test $ snd x) xs
+         in IM.foldr (\a acc -> acc .&&. test a) (test $ snd x) xs
   where
     err = msgFail "empty output" False
 
-testSet :: (a -> Gen Prop) -> S.Set a -> Gen Prop
+testSet :: (a -> Property) -> S.Set a -> Property
 testSet test set
     | S.null set = err
     | otherwise =
         let (x, xs) = S.deleteFindMin set
-         in S.fold (\a b -> b .&&. test a) (test x) xs
+         in S.foldr (\a b -> b .&&. test a) (test x) xs
   where
     err = msgFail "empty output" False
 
-prop_Projection :: Point3D -> Point3D -> Property
+prop_Projection :: Vec3D -> Vec3D -> Property
 prop_Projection a b = msgFail "bad projection" $ c &. b < error_precisson
   where
     c = normalofAtoB a b
@@ -106,3 +146,97 @@ prop_partition box sP = msgFail "bad points partition" (test1 || test2)
     test2 =
         ((L.sort $ pointsOnB1 ppb) == (L.sort $ pointsOnB2 ppp))
             && ((L.sort $ pointsOnB2 ppb) == (L.sort $ pointsOnB1 ppp))
+
+prop_projAonB_idempotent :: Vec3D -> Vec3D -> Property
+prop_projAonB_idempotent a b =
+    (normsqr b > error_precisson) ==>
+        let p = projAonB a b
+            pp = projAonB p b
+         in msgFail "projAonB is not idempotent" $ norm (p &- pp) < error_precisson
+
+prop_projAonB_orthogonal :: Vec3D -> Vec3D -> Property
+prop_projAonB_orthogonal a b =
+    (normsqr b > error_precisson) ==>
+        let p = projAonB a b
+            orth = a &- p
+         in msgFail "projAonB is not orthogonal" $ abs (orth &. b) < error_precisson
+
+prop_powerDist_symmetric :: WPoint Point3D -> WPoint Point3D -> Property
+prop_powerDist_symmetric a b =
+    msgFail "powerDist is not symmetric" $ abs (powerDist a b - powerDist b a) < error_precisson
+
+prop_powerDist_euclidean :: Vec3D -> Vec3D -> Property
+prop_powerDist_euclidean a b =
+    let wa = WPoint 0 a
+        wb = WPoint 0 b
+        pd = powerDist wa wb
+        ed = normsqr (a &- b)
+     in msgFail "powerDist != distSqr when weights are zero" $ abs (pd - ed) < error_precisson
+
+prop_whichSideOfPlane_consistency :: Plane Point3D -> Vec3D -> Property
+prop_whichSideOfPlane_consistency plane p =
+    let side = whichSideOfPlane plane p
+        nd = normalize (planeNormal plane)
+        dist = p &. nd - planeDist plane
+     in case side of
+            B1 -> msgFail "B1 but dist < 0" $ dist >= -error_precisson
+            B2 -> msgFail "B2 but dist > 0" $ dist <= error_precisson
+            OnPlane -> msgFail "OnPlane but dist /= 0" $ abs dist < error_precisson
+            _ -> property True
+
+prop_getMaxDistPoint :: Plane Point3D -> SetPoint Point3D -> Property
+prop_getMaxDistPoint plane sP =
+    (Vec.length sP > 0) ==>
+        let p = [0 .. Vec.length sP - 1]
+         in case getMaxDistPoint plane sP p of
+                Nothing -> property False
+                Just (pMax, dMax) ->
+                    let dists = map (norm . getProjOnPlane plane . (sP !.)) p
+                     in msgFail "Not the max dist point" $ dMax >= maximum dists - error_precisson
+
+prop_getMaxDistPointOnDir :: Vec3D -> SetPoint Point3D -> Property
+prop_getMaxDistPointOnDir dir sP =
+    (Vec.length sP > 0 && normsqr dir > error_precisson) ==>
+        let p = [0 .. Vec.length sP - 1]
+            refdir = normalize dir
+         in case getMaxDistPointOnDir refdir sP p of
+                Nothing -> property False
+                Just (pMax, dMax) ->
+                    let dists = map (\x -> norm $ projAonB (sP !. x) refdir) p
+                     in msgFail "Not the max dist point on dir" $ dMax >= maximum dists - error_precisson
+
+prop_compEdge_consistent :: Int -> Int -> Int -> Int -> Property
+prop_compEdge_consistent a b c d =
+    let res = compEdge a b c d
+        set1 = S.fromList [a, b]
+        set2 = S.fromList [c, d]
+        amax = max a b
+        amin = min a b
+        bmax = max c d
+        bmin = min c d
+     in case res of
+            EQ -> msgFail "EQ but sets differ" $ set1 == set2
+            LT -> msgFail "LT but set1 >= set2" $ set1 /= set2 && (amax < bmax || (amax == bmax && amin < bmin))
+            GT -> msgFail "GT but set1 <= set2" $ set1 /= set2 && (amax > bmax || (amax == bmax && amin > bmin))
+
+prop_compFace_consistent :: (Int, Int, Int) -> (Int, Int, Int) -> Property
+prop_compFace_consistent (a1, a2, a3) (b1, b2, b3) =
+    let res = compFace (a1, a2, a3) (b1, b2, b3)
+        set1 = S.fromList [a1, a2, a3]
+        set2 = S.fromList [b1, b2, b3]
+        sort3 (x, y, z) = let [i, j, k] = L.sort [x, y, z] in (k, j, i) -- fast3DSort is descending
+     in case res of
+            EQ -> msgFail "EQ but sets differ" $ set1 == set2
+            LT -> msgFail "LT but a >= b" $ sort3 (a1, a2, a3) < sort3 (b1, b2, b3)
+            GT -> msgFail "GT but a <= b" $ sort3 (a1, a2, a3) > sort3 (b1, b2, b3)
+
+prop_findMinimunButZero :: [Double] -> Property
+prop_findMinimunButZero ds =
+    let ps = [0 .. length ds - 1]
+        func i = ds !! i
+        res = findMinimunButZero func ps
+        nonZeros = filter (\x -> x /= 0) ds
+     in case (res, null nonZeros) of
+            (Nothing, True) -> property True
+            (Just (val, _), False) -> msgFail "Not the minimum non-zero" $ val == minimum nonZeros
+            _ -> property False
