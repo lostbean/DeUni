@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module CheckCommon where
 
@@ -12,7 +13,6 @@ import qualified Data.Vector as Vec
 
 import Data.Vector (Vector)
 
-import Control.Applicative
 import Control.Monad
 import Test.QuickCheck
 
@@ -20,13 +20,7 @@ import Linear.Mat
 import Linear.Vect
 
 import DeUni.DeWall
-import DeUni.Dim2.ReTri2D
-import DeUni.Dim3.Base3D
 import DeUni.FirstSeed
-import DeUni.GeometricTools
-import DeUni.Types
-
-import VTKRender
 
 -- | Standard testing arguments
 myArgs :: Args
@@ -93,7 +87,7 @@ instance Arbitrary (Vector (WPoint Point3D)) where
 instance Arbitrary (Vector (WPoint Point2D)) where
     arbitrary = genPointVector
 
-genPointVector :: (Arbitrary Vec2D, Arbitrary Vec3D, PointND p, Arbitrary (p Double), Norm Double p) => Gen (Vector (WPoint p))
+genPointVector :: (PointND p, Arbitrary (p Double), Norm Double p) => Gen (Vector (WPoint p))
 genPointVector = do
     let
         wpNormal = arbitrary
@@ -253,7 +247,9 @@ prop_compFace_consistent (a1, a2, a3) (b1, b2, b3) =
     let res = compFace (a1, a2, a3) (b1, b2, b3)
         set1 = S.fromList [a1, a2, a3]
         set2 = S.fromList [b1, b2, b3]
-        sort3 (x, y, z) = let [i, j, k] = L.sort [x, y, z] in (k, j, i) -- fast3DSort is descending
+        sort3 (x, y, z) = case L.sort [x, y, z] of
+            [i, j, k] -> (k, j, i) -- fast3DSort is descending
+            _ -> error "sort3: impossible"
      in case res of
             EQ -> msgFail "EQ but sets differ" $ set1 == set2
             LT -> msgFail "LT but a >= b" $ sort3 (a1, a2, a3) < sort3 (b1, b2, b3)

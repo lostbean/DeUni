@@ -73,18 +73,30 @@ test-suite DeUni-test
     , text
     , vector         >=0.9
 
+flag benchmark
+  description:
+    Build the benchmark executable (requires random-fu/random-source)
+
+  default:     False
+
 executable DeUni-benchmark
   hs-source-dirs: profile
   main-is:        Benchmark.hs
   ghc-options:    -O3 -threaded -rtsopts
   other-modules:  RandomGenerator
-  build-depends:
-      base                    >=4   && <5
-    , criterion               >=0.6
-    , DeUni
-    , hammer                  >=0.4 && <0.5
-    , mersenne-random-pure64  >=0.2
-    , monad-loops             >=0.3
-    , random-fu               >=0.2
-    , random-source           >=0.3
-    , vector                  >=0.9
+
+  if flag(benchmark)
+    buildable:     True
+    build-depends:
+        base                    >=4   && <5
+      , criterion               >=0.6
+      , DeUni
+      , hammer                  >=0.4 && <0.5
+      , mersenne-random-pure64  >=0.2
+      , monad-loops             >=0.3
+      , random-fu               >=0.2
+      , random-source           >=0.3
+      , vector                  >=0.9
+
+  else
+    buildable: False

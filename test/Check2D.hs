@@ -13,23 +13,20 @@ import Data.IntMap (IntMap)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Set (Set)
-import Data.Vector (Vector, (!))
+import Data.Vector ((!))
 
 import Test.QuickCheck
 
 import Linear.Vect
 
 import DeUni.DeWall
-import DeUni.Dim2.Base2D
 import DeUni.Dim2.Delaunay2D
 import DeUni.Dim2.ReTri2D
 import DeUni.FirstSeed
-import DeUni.GeometricTools
-import DeUni.Types
 
 import CheckCommon
-import RenderSVG
 
+runChecker :: IO ()
 runChecker = do
     print "Testing 1st edge.."
     quickCheckWith myArgs prop_1stEdge

@@ -15,22 +15,19 @@ import Test.QuickCheck
 import Data.IntMap (IntMap)
 import Data.Maybe (isJust)
 import Data.Set (Set)
-import Data.Vector (Vector, (!))
+import Data.Vector ((!))
 
 import Linear.Vect
 
 import DeUni.DeWall
-import DeUni.Dim3.Base3D
 import DeUni.Dim3.Delaunay3D
 import DeUni.Dim3.Hull3D
 import DeUni.Dim3.ReTri3D
-import DeUni.FirstSeed
-import DeUni.GeometricTools
-import DeUni.Types
 
 import CheckCommon
-import VTKRender
+import VTKRender (writeVTKfile)
 
+runChecker :: IO ()
 runChecker = do
     print "Testing 1st face.."
     quickCheckWith myArgs prop_1stFace
@@ -61,13 +58,13 @@ plotFail file sp obj test =
 prop_ConvHull :: Box Point3D -> SetPoint Point3D -> Property
 prop_ConvHull box sp = (length ps) > 4 ==> plotFail "Hull3D_err.vtu" sp hull fulltest
   where
-    fulltest = testHull .&&. testClosure .&&. testSize
+    fulltest = testHull .&&. testClo .&&. testSize
     (hull, st) = runHull3D box sp ixps
     testh x = testHullFace sp x
     testHull = testIM testh hull
     testSize = msgFail "gen obj /= num add" $ IM.size hull == count st
     testCloVal = msgFail "open Hull" $ (S.null . externalFaces) st
-    testClosure = testCloVal
+    testClo = testCloVal
     ixps = let size = Vec.length sp in if size <= 0 then [] else [0 .. size - 1]
     ps = Vec.toList sp
 

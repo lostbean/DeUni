@@ -1,6 +1,6 @@
 pre-commit:
   commands:
     format:
-      glob: "*.{hs,nix,cabal,sh,md}"
+      glob: "*.{hs,nix,cabal}"
       run: nix fmt {staged_files}
       stage_fixed: true
