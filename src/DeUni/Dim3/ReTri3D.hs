@@ -18,7 +18,9 @@ getCircumSphere a b c d = (radius, center)
     radius = (normsqr $ point a &- center) - weight a
 
 getFaceDistCenter :: WPoint Vec3 -> WPoint Vec3 -> WPoint Vec3 -> WPoint Vec3 -> (Double, Vec3D)
-getFaceDistCenter a b c d = (signDist, center)
+getFaceDistCenter a b c d
+    | isDegenerate = (0, point a)
+    | otherwise = (signDist, center)
   where
     center = (-0.5) *& ((mux *& q1) &+ (muy *& q2) &+ (muz *& q3))
     signDist = if signRDet r then -dist else dist
@@ -30,6 +32,15 @@ getFaceDistCenter a b c d = (signDist, center)
     -- hand made QR for row vector matrix
     q = orthoRowsGram m
     r = m .*. transpose q
+    -- Check if the tetrahedron is degenerate (near-zero volume).
+    -- Volume is proportional to |det(M)| = |scalar triple product of edges|.
+    e1 = point b &- point a
+    e2 = point c &- point a
+    e3 = point d &- point a
+    tripleProduct = abs (e1 &. (e2 &^ e3))
+    maxEdgeSq = maximum [normsqr e1, normsqr e2, normsqr e3]
+    -- Degenerate when volume is tiny relative to edge lengths cubed
+    isDegenerate = maxEdgeSq < 1e-20 || tripleProduct < 1e-6 * maxEdgeSq * sqrt maxEdgeSq
 
 getM :: WPoint Vec3 -> WPoint Vec3 -> WPoint Vec3 -> WPoint Vec3 -> Mat3D
 getM a b c d = Mat3 (point b &- point a) (point c &- point a) (point d &- point a)

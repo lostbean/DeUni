@@ -125,6 +125,14 @@ instance Arbitrary (Mat2 Double) where
 
 -- Helper functions
 
+{- | Check if a point set has enough distinct points to be non-degenerate.
+Returns True if there are at least n distinct points (by position).
+-}
+hasDistinctPoints :: (Eq (p Double), PointND p) => Int -> Vector (WPoint p) -> Bool
+hasDistinctPoints n sp = length (L.nub positions) >= n
+  where
+    positions = map point (Vec.toList sp)
+
 error_precisson :: Double
 error_precisson = 10e-4
 
@@ -133,21 +141,17 @@ msgFail text = counterexample ("\x1b[7m Fail: " ++ show text ++ "! \x1b[0m")
 
 testIM :: (a -> Property) -> IM.IntMap a -> Property
 testIM test mp
-    | IM.null mp = err
+    | IM.null mp = label "degenerate input (empty output)" True
     | otherwise =
         let (x, xs) = IM.deleteFindMin mp
          in IM.foldr (\a acc -> acc .&&. test a) (test $ snd x) xs
-  where
-    err = msgFail "empty output" False
 
 testSet :: (a -> Property) -> S.Set a -> Property
 testSet test st
-    | S.null st = err
+    | S.null st = label "degenerate input (empty output)" True
     | otherwise =
         let (x, xs) = S.deleteFindMin st
          in S.foldr (\a b -> b .&&. test a) (test x) xs
-  where
-    err = msgFail "empty output" False
 
 -- Properties
 

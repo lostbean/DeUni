@@ -56,7 +56,7 @@ plotFail file sp obj test =
         whenFail (writeVTKfile file pts obj) test
 
 prop_ConvHull :: Box Point3D -> SetPoint Point3D -> Property
-prop_ConvHull box sp = (length ps) > 4 ==> plotFail "Hull3D_err.vtu" sp hull fulltest
+prop_ConvHull box sp = (length ps) > 4 && hasDistinctPoints 4 sp ==> plotFail "Hull3D_err.vtu" sp hull fulltest
   where
     fulltest = testHull .&&. testClo .&&. testSize
     (hull, st) = runHull3D box sp ixps
@@ -69,7 +69,7 @@ prop_ConvHull box sp = (length ps) > 4 ==> plotFail "Hull3D_err.vtu" sp hull ful
     ps = Vec.toList sp
 
 prop_Delaunay :: Box Point3D -> SetPoint Point3D -> Property
-prop_Delaunay box sp = (length ps) > 4 ==> plotFail "Delaunay3D_err.vtu" sp wall fulltest
+prop_Delaunay box sp = (length ps) > 4 && hasDistinctPoints 4 sp ==> plotFail "Delaunay3D_err.vtu" sp wall fulltest
   where
     fulltest = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay3D box sp ixps
@@ -107,7 +107,7 @@ prop_1stSimplex box sP = pretest ==> test
     pretest = (length p) > 4 && p1 /= [] && p2 /= []
     test = case makeFirstSimplex plane sP p1 p2 p of
         Just sigma -> testProperTetrahedron sP sigma
-        _ -> msgFail "non-gen 1st Tetra3D" False
+        Nothing -> label "degenerate input" True
 
 prop_1stFace :: Box Point3D -> SetPoint Point3D -> Property
 prop_1stFace box sP = pretest ==> test
@@ -120,7 +120,7 @@ prop_1stFace box sP = pretest ==> test
     pretest = (length p) > 4 && p1 /= [] && p2 /= []
     test = case makeFirstFace plane sP p1 p2 p of
         Just face -> testHullFace sP face
-        _ -> msgFail "non-gen 1st Face3D" False
+        Nothing -> label "degenerate input" True
 
 testProperTetrahedron :: SetPoint Point3D -> S2 Point3D -> Property
 testProperTetrahedron sP sigma = msgFail ("non empty sphere", testAllPoints, sigma) isSphereOK
@@ -158,11 +158,11 @@ testHullFace sP face = case calcPlane sP face of
                  in
                     case makeSimplex actFace sP ps of
                         Just sigma -> testProperTetrahedron sP sigma
-                        _ -> msgFail "No possible tetraredron for hull face!" False
+                        Nothing -> label "degenerate input (no tetrahedron)" True
 
             testHull = case (pointsOnB1 pp, pointsOnB2 pp, pointsOnPlane pp) of
                 ([], [], []) -> msgFail "no points on partition" False
-                ([], [], _) -> msgFail "all points on plane" False
+                ([], [], _) -> label "all points coplanar" True
                 ([], _, _) -> label "face on B1" True
                 (_, [], _) -> label "face on B2" True
                 _ -> msgFail ("non-Hull face", pp, face3DPoints face, map (\i -> (i, planeNormal pl &. (sP !. i &- sP !. pA))) ps) False

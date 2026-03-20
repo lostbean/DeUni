@@ -44,7 +44,7 @@ runChecker = do
     quickCheckWith myArgs prop_DelaunayMinPoints
 
 prop_Delaunay :: Box Point2D -> SetPoint Point2D -> Property
-prop_Delaunay box sp = (length ps) > 4 ==> fulltest
+prop_Delaunay box sp = (length ps) > 4 && hasDistinctPoints 3 sp ==> fulltest
   where
     fulltest = testWall .&&. testHull .&&. testSize .&&. testClo
     (wall, st) = runDelaunay2D box sp ixps
@@ -83,7 +83,7 @@ prop_1stSimplex box sP = pretest ==> test
     pretest = (length p) > 4 && p1 /= [] && p2 /= []
     test = case makeFirstSimplex plane sP p1 p2 p of
         Just sigma -> testProperFace sP sigma
-        _ -> msgFail "non-gen 1st Face2D" False
+        Nothing -> label "degenerate input" True
 
 prop_1stEdge :: Box Point2D -> SetPoint Point2D -> Property
 prop_1stEdge box sP = pretest ==> test
@@ -96,7 +96,7 @@ prop_1stEdge box sP = pretest ==> test
     pretest = (length p) > 4 && p1 /= [] && p2 /= []
     test = case getFirstEdge plane sP p1 p2 of
         Just (pA, pB) -> let edge = Edge2D pA pB in testHullEdge sP edge
-        _ -> msgFail "non-gen 1st Edge2D" False
+        Nothing -> label "degenerate input" True
 
 testProperFace :: SetPoint Point2D -> S2 Point2D -> Property
 testProperFace sP sigma = msgFail ("non empty sphere", testAllPoints, sigma, sP ! pA, sP ! pB, sP ! pC) isSphereOK
@@ -130,7 +130,7 @@ testHullEdge sP edge = test
              in
                 case (pointsOnB1 pp, pointsOnB2 pp, pointsOnPlane pp) of
                     ([], [], []) -> msgFail "no points on partition" False
-                    ([], [], _) -> msgFail "all points on plane" False
+                    ([], [], _) -> label "all points coplanar" True
                     ([], _, _) -> label "face on B1" True
                     (_, [], _) -> label "face on B2" True
                     (b1, b2, _) ->

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/ci.sh 2>&1)",
+      "Bash(nix develop:*)"
+    ]
+  }
+}

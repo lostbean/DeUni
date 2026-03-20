@@ -18,27 +18,34 @@ getCircumCircle a b c = (radius, center)
     radius = (normsqr $ point a &- center) - weight a
 
 getFaceDistCenter :: WPoint Vec2 -> WPoint Vec2 -> WPoint Vec2 -> (Double, Vec2D)
-getFaceDistCenter a b c =
-    let
-        center = (-0.5) *& ((mux *& q1) &+ (muy *& q2))
-        dist = muy * 0.5 + (q2 &. point a)
-        (mux, muy) = solveMu ((-1) *& getAlpha a b c) r
-        (Mat2 q1 q2) = q
+getFaceDistCenter a b c
+    | isDegenerate = (0, point a)
+    | otherwise =
+        let
+            (Mat2 q1 q2) = q
+            center = (-0.5) *& ((mux *& q1) &+ (muy *& q2))
+            dist = muy * 0.5 + (q2 &. point a)
+            (mux, muy) = solveMu ((-1) *& getAlpha a b c) r
 
-        m = getM a b c
-        -- hand made QR for row vector matrix
-        q = orthoRowsGram m
-        r = m .*. transpose q
-
-        nd = let (Vec2 x y) = point b &- point a in Vec2 (-y) x
-        dir = (nd &. (point c &- point a)) * (nd &. (center &- point a))
-        absdist = abs dist
-        signDist = if dir > 0 then absdist else -absdist
-     in
-        -- For some reason the sign determined by matrix don't work
-        -- signDist     = if signRDet r then -dist else dist
-
-        (signDist, center)
+            nd = let (Vec2 x y) = point b &- point a in Vec2 (-y) x
+            dir = (nd &. (point c &- point a)) * (nd &. (center &- point a))
+            absdist = abs dist
+            signDist = if dir > 0 then absdist else -absdist
+         in
+            (signDist, center)
+  where
+    m = getM a b c
+    -- hand made QR for row vector matrix
+    q = orthoRowsGram m
+    r = m .*. transpose q
+    -- Check if the triangle is degenerate (near-zero area).
+    -- The area is proportional to |det(M)| = |cross product of edges|.
+    (Vec2 ux uy) = point b &- point a
+    (Vec2 vx vy) = point c &- point a
+    crossMag = abs (ux * vy - uy * vx)
+    maxEdge = max (normsqr (point b &- point a)) (normsqr (point c &- point a))
+    -- Degenerate when the cross product is tiny relative to the edge lengths
+    isDegenerate = maxEdge < 1e-20 || crossMag < 1e-6 * maxEdge
 
 getM :: WPoint Vec2 -> WPoint Vec2 -> WPoint Vec2 -> Mat2D
 getM a b c = Mat2 (point b &- point a) (point c &- point a)
