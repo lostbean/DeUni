@@ -26,14 +26,15 @@ DeUni implements a divide-and-conquer strategy called Marriage Before Conquer, a
 
 1. **Divide:** A cutting plane bisects the bounding box along its longest axis, splitting points into two half-spaces (B1 and B2).
 
-2. **Marry (merge first):** Before recursing, the algorithm builds all simplices (triangles in 2D, tetrahedra in 3D) that straddle the cutting plane. Starting from an initial seed simplex, it grows the set of crossing simplices by processing an Active Face List (AFL). Each new simplex's sub-faces are classified:
+1. **Marry (merge first):** Before recursing, the algorithm builds all simplices (triangles in 2D, tetrahedra in 3D) that straddle the cutting plane. Starting from an initial seed simplex, it grows the set of crossing simplices by processing an Active Face List (AFL). Each new simplex's sub-faces are classified:
+
    - Faces crossing the cutting plane go into the "alpha" AFL (processed next)
    - Faces entirely in B1 or B2 go into their respective AFLs
    - Duplicate faces (shared by two simplices, thus closed) are removed
 
-3. **Conquer:** Recurse into each half-space with its accumulated AFL of open faces.
+1. **Conquer:** Recurse into each half-space with its accumulated AFL of open faces.
 
-4. **Termination:** Recursion ends when the AFL is empty.
+1. **Termination:** Recursion ends when the AFL is empty.
 
 ### Circumsphere computation
 
